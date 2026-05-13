@@ -176,38 +176,29 @@ install_package() {
 }
 
 install_packages() {
-    # Core build tools
+    # ESSENTIAL packages only - core editor environment
     local packages=(
-        "build-essential"
+        "build-essential"    # C/C++ compilers (lightweight)
         "git"
         "curl"
         "wget"
         "ca-certificates"
+        "zsh"
+        "bash"
+        "neovim"
+        "tmux"
     )
     
-    # Shell
-    packages+=("zsh" "bash")
+    # Optional: system utilities (install if not heavy)
+    # Most are in apt and lightweight
+    if command -v apt-cache &> /dev/null; then
+        # Only add if they exist in repo and are <100MB
+        packages+=("ripgrep" "fd-find" "jq" "fzf" "bat")
+        packages+=("htop" "git" "openssh-client" "gnupg")
+    fi
     
-    # Editors & tools
-    packages+=("neovim" "tmux" "strace" "htop")
-    
-    # Development
-    packages+=("python3" "python3-pip" "python3-dev" "nodejs" "npm")
-    
-    # Languages
-    packages+=("clang" "lldb" "lld" "rustc" "cargo")
-    
-    # System utilities
-    packages+=("ripgrep" "fd-find" "jq" "yq" "fzf" "exa" "bat")
-    packages+=("openssh-client" "openssh-server" "gnupg" "age")
-    
-    # Container tools
-    packages+=("docker.io" "docker-compose")
-    
-    # Kubernetes
-    packages+=("kubectl")
-    
-    log INFO "Installing ${#packages[@]} packages..."
+    log INFO "Installing ${#packages[@]} essential packages..."
+    log WARN "Optional packages (python, rust, clang, docker, k8s) require: make install-extended"
     
     update_package_lists || return 1
     
@@ -218,6 +209,7 @@ install_packages() {
     done
     
     log OK "Package installation complete (Installed: ${PACKAGES_INSTALLED}, Skipped: ${PACKAGES_SKIPPED})"
+
 }
 
 # ============================================================================
@@ -372,6 +364,34 @@ setup_neovim() {
             log WARN "Neovim plugin sync may have timed out (normal on first run)"
         }
     fi
+}
+
+setup_nvim_lsp() {
+    log INFO "Configuring Neovim LSP servers..."
+    
+    if [[ ${DRY_RUN} == true ]]; then
+        log INFO "DRY-RUN: Would install LSP servers via Mason"
+        return 0
+    fi
+    
+    if ! command -v nvim &> /dev/null; then
+        log WARN "Neovim not installed, skipping LSP setup"
+        return 0
+    fi
+    
+    # Install essential LSP servers via Mason (non-blocking)
+    # This runs in background since it can take time
+    log INFO "Launching Neovim to install Mason LSP servers (this may take a few minutes)..."
+    
+    timeout 180 nvim +MasonInstall \
+        lua_ls \
+        pylsp \
+        bash-language-server \
+        +q 2>> "${LOG_FILE}" || {
+        log WARN "LSP server installation timed out or failed (can install manually: :MasonInstall)"
+    }
+    
+    log OK "LSP servers initialized"
 }
 
 setup_tmux() {
@@ -617,6 +637,7 @@ main() {
     # Setup individual components
     setup_shell
     setup_neovim
+    setup_nvim_lsp
     setup_tmux
     
     # Run validations
