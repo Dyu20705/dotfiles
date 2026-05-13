@@ -116,3 +116,6 @@ if ! shopt -oq posix; then
   fi
 fi
 export PATH="$HOME/.npm-global/bin:$PATH"
+. "$HOME/.cargo/env"
+
+[ -f ~/.fzf.bash ] && source ~/.fzf.bash
