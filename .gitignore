@@ -91,3 +91,5 @@ node_modules/
 # WakaTime
 # =========================
 .wakatime*
+
+docs/
