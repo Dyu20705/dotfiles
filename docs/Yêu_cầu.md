@@ -1,10 +1,8 @@
-Đây là cách tôi sẽ viết yêu cầu cho AI coding agent để agent làm đúng hướng, không phá basecode và tập trung vào reliability thay vì “refactor vô tội vạ”.
-
 ---
 
 # Dotfiles Stabilization & Production Hardening Tasks
 
-Repository: [GitHub Repository](https://github.com/Dyu20705?utm_source=chatgpt.com)
+Repository: [GitHub Repository](https://github.com/Dyu20705/dotfiles)
 
 ## Global Constraints
 
