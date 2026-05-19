@@ -8,8 +8,23 @@ return {
       "nvim-tree/nvim-web-devicons",
     },
     lazy = false,
+    keys = {
+      { "<leader>v", "<cmd>Neotree filesystem reveal left<cr>", desc = "Neo-tree Reveal" },
+    },
     config = function()
-      vim.keymap.set("n", "<leader>v", ":Neotree filesystem reveal left<CR>", {})
+      require("neo-tree").setup({
+        filesystem = {
+          use_libuv_file_watcher = true,
+          follow_current_file = {
+            enabled = true,
+          },
+        },
+        window = {
+          mappings = {
+            ["<LeftMouse>"] = "open",
+          },
+        },
+      })
     end,
   },
 }

@@ -2,7 +2,7 @@
 return {
   'rmagatti/auto-session',
   lazy = false,
-  priority = 10,
+  priority = 5,
   opts = {
     log_level = 'error',
     auto_session_suppress_dirs = { '~/', '/', '~/.local/share/nvim' },
@@ -10,7 +10,7 @@ return {
     auto_restore_enabled = true,
     cwd_change_handling = true,
     pre_save_cmds = { 'Neotree close' },   -- đóng neo-tree trước khi lưu
-    post_restore_cmds = { 'Neotree refresh' },  -- làm mới neo-tree khi khôi phục
+    post_restore_cmds = { 'Neotree filesystem reveal left' },
   },
   keys = {
     { '<leader>ws', '<cmd>SessionSave<CR>', desc = 'Lưu session thủ công' },
