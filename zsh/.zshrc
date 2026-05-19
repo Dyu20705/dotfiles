@@ -16,10 +16,34 @@ setopt HIST_FIND_NO_DUPS         # Don't show duplicates in search
 setopt HIST_IGNORE_SPACE         # Ignore commands starting with space
 setopt HIST_SAVE_NO_DUPS         # Don't save duplicates
 
+# Use unique path arrays so PATH mutations stay idempotent.
+typeset -U path PATH
+
 # History configuration
 HISTSIZE=50000
 SAVEHIST=50000
 HISTFILE=~/.zsh_history
+
+# ==========================================================================
+# Runtime mode and environment detection
+# ==========================================================================
+
+DOTFILES_SHELL_MODE=${DOTFILES_SHELL_MODE:-normal}
+DOTFILES_SHELL_REMOTE=0
+
+if [[ -n "$CI" || -n "$SSH_CONNECTION" || -n "$SSH_TTY" ]]; then
+    DOTFILES_SHELL_REMOTE=1
+fi
+
+# Nested tmux sessions are usually latency-sensitive and should avoid extra work.
+if [[ -n "$TMUX" ]]; then
+    DOTFILES_SHELL_REMOTE=1
+fi
+
+DOTFILES_SHELL_EFFECTIVE_MODE="$DOTFILES_SHELL_MODE"
+if [[ "$DOTFILES_SHELL_MODE" != "minimal" && "$DOTFILES_SHELL_MODE" != "full" && "$DOTFILES_SHELL_REMOTE" -eq 1 ]]; then
+    DOTFILES_SHELL_EFFECTIVE_MODE="minimal"
+fi
 
 # ============================================================================
 # PATH Management (idempotent - safe to re-source)
@@ -29,6 +53,12 @@ HISTFILE=~/.zsh_history
 add_to_path() {
     if [[ ":${PATH}:" != *":$1:"* ]]; then
         export PATH="$1:${PATH}"
+    fi
+}
+
+path_append() {
+    if [[ ":${PATH}:" != *":$1:"* ]]; then
+        export PATH="${PATH}:$1"
     fi
 }
 
@@ -105,42 +135,50 @@ edit() {
     [[ -n "$file" ]] && ${EDITOR} "$file"
 }
 
+is_minimal_shell() {
+    [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == "minimal" ]]
+}
+
+is_full_shell() {
+    [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == "full" ]]
+}
+
 # ============================================================================
 # Shell Integration (if available)
 # ============================================================================
 
-# 1. Starship prompt (if installed)
-if command -v starship &> /dev/null; then
-    eval "$(starship init zsh)"
+if is_minimal_shell; then
+    # Minimal mode: deterministic prompt, no optional integrations.
+    PROMPT='%F{green}%n%f:%F{blue}%~%f %F{yellow}❯%f '
 else
-    # Fallback to basic prompt
-    PROMPT='%F{green}%n%f:%F{blue}%~%f%F{cyan}$(__git_branch)%f %F{yellow}❯%f '
-    
-    # Simple git branch display
-    __git_branch() {
-        git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/^/ (/' | sed 's/$/)/'
-    }
-fi
+    # Normal/full mode: load optional integrations only when available.
+    if command -v starship &> /dev/null; then
+        eval "$(starship init zsh)"
+    else
+        # Fallback to basic prompt
+        PROMPT='%F{green}%n%f:%F{blue}%~%f%F{cyan}$(__git_branch)%f %F{yellow}❯%f '
 
-# 2. Zoxide (smart cd - if installed)
-if command -v zoxide &> /dev/null; then
-    eval "$(zoxide init zsh)"
-fi
+        # Simple git branch display
+        __git_branch() {
+            git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/^/ (/' | sed 's/$/)/'
+        }
+    fi
 
-# 3. FZF integration (if installed)
-if command -v fzf &> /dev/null; then
-    # Use fuzzy finder for command history search
-    eval "$(fzf --zsh)"
-fi
+    if command -v zoxide &> /dev/null; then
+        eval "$(zoxide init zsh)"
+    fi
 
-# 4. Direnv (environment per directory - if installed)
-if command -v direnv &> /dev/null; then
-    eval "$(direnv hook zsh)"
-fi
+    if command -v fzf &> /dev/null; then
+        eval "$(fzf --zsh)"
+    fi
 
-# 5. Atuin (shell history sync - if installed)
-if command -v atuin &> /dev/null; then
-    eval "$(atuin init zsh)"
+    if command -v direnv &> /dev/null; then
+        eval "$(direnv hook zsh)"
+    fi
+
+        if is_full_shell && command -v atuin &> /dev/null; then
+        eval "$(atuin init zsh)"
+    fi
 fi
 
 # ============================================================================
@@ -150,11 +188,18 @@ fi
 # Enable completion
 autoload -Uz compinit
 
+zcompdump_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+zcompdump_file="$zcompdump_dir/zcompdump-$ZSH_VERSION"
+[[ -d "$zcompdump_dir" ]] || command mkdir -p "$zcompdump_dir"
+
 # Load completions cache (faster subsequent starts)
-if [[ -n ${ZDOTDIR}/.zcompdump(Nmh+24) ]]; then
-    compinit
+if [[ -f "$zcompdump_file" ]]; then
+    compinit -d "$zcompdump_file" || {
+        rm -f "$zcompdump_file"
+        compinit -d "$zcompdump_file"
+    }
 else
-    compinit -C
+    compinit -d "$zcompdump_file"
 fi
 
 # Completion options
@@ -204,7 +249,9 @@ check_tools() {
 
 # Only run once per session
 if [[ -z "$DOTFILES_SHELL_CHECKED" ]]; then
-    check_tools
+    if is_full_shell; then
+        check_tools
+    fi
     export DOTFILES_SHELL_CHECKED=1
 fi
 
