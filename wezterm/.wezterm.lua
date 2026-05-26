@@ -2,10 +2,6 @@ local wezterm = require("wezterm")
 local act = wezterm.action
 local config = wezterm.config_builder()
 
-local io = require("io")
-local os = require("os")
-local math = require("math")
-
 -- ============================================================
 -- GLOBAL
 -- ============================================================
@@ -20,60 +16,83 @@ local MODE = os.getenv("DOTFILES_WEZTERM_MODE") or "normal"
 
 local brightness = 0.03
 
--- Background and music paths (only referenced; no scanning at config-time)
-local bg_image = os.getenv("DOTFILES_WEZTERM_BG") or (home .. "/dotfiles/wezterm/bg/bg.png")
-
 local background_folder = home .. "/bg"
-
 local music_folder = home .. "/dotfiles/wezterm/sd"
+local bg_image = os.getenv("DOTFILES_WEZTERM_BG") or (home .. "/dotfiles/wezterm/bg/bg.png")
 local default_music = music_folder .. "/bg.mp3"
+
+local background_index = {}
+local music_index = {}
+
+local function has_suffix(path, suffixes)
+    local lower = string.lower(path)
+    for _, suffix in ipairs(suffixes) do
+        if lower:sub(-#suffix) == suffix then
+            return true
+        end
+    end
+    return false
+end
+
+local function build_index(pattern, suffixes, fallback)
+    local entries = {}
+    local seen = {}
+
+    local ok, paths = pcall(wezterm.glob, pattern)
+    if ok then
+        for _, path in ipairs(paths) do
+            if has_suffix(path, suffixes) and not seen[path] then
+                seen[path] = true
+                table.insert(entries, path)
+            end
+        end
+    end
+
+    if #entries == 0 and fallback then
+        table.insert(entries, fallback)
+    end
+
+    return entries
+end
+
+background_index = build_index(background_folder .. "/*", { ".png", ".jpg", ".jpeg", ".webp" }, bg_image)
+music_index = build_index(music_folder .. "/*", { ".mp3", ".flac", ".wav", ".m4a" }, default_music)
+
+local background_cursor = 1
 
 -- ============================================================
 -- RANDOM BACKGROUND
 -- ============================================================
 
--- NOTE: Do NOT perform blocking filesystem scans or shell commands at config-time.
--- pick_random_background is provided for interactive use only (deferred), and will be
--- executed on-demand via a keybinding or callback. It intentionally avoids running
--- at module load. If called, it will perform a directory scan at that time.
-local function pick_random_background(folder)
-    local handle = io.popen('ls "' .. folder .. '" 2>/dev/null')
-    if not handle then return nil end
-    local files = handle:read("*a")
-    handle:close()
+local function choose_random_background()
+    if #background_index == 0 then
+        return bg_image
+    end
+    return background_index[math.random(#background_index)]
+end
 
-    local images = {}
-    for file in string.gmatch(files, "[^\n]+") do
-        if file:match("%.png$") or file:match("%.jpg$") or file:match("%.jpeg$") or file:match("%.webp$") then
-            table.insert(images, file)
-        end
+local function choose_next_background()
+    if #background_index == 0 then
+        return bg_image
     end
-    if #images > 0 then
-        return folder .. "/" .. images[math.random(#images)]
+
+    local selected = background_index[background_cursor]
+    background_cursor = background_cursor + 1
+    if background_cursor > #background_index then
+        background_cursor = 1
     end
-    return nil
+    return selected
 end
 
 -- ============================================================
 -- RANDOM MUSIC
 -- ============================================================
 
-local function pick_random_music(folder)
-    local handle = io.popen('ls "' .. folder .. '" 2>/dev/null')
-    if not handle then return nil end
-    local files = handle:read("*a")
-    handle:close()
-
-    local music_files = {}
-    for file in string.gmatch(files, "[^\n]+") do
-        if file:match("%.mp3$") or file:match("%.flac$") or file:match("%.wav$") or file:match("%.m4a$") then
-            table.insert(music_files, folder .. "/" .. file)
-        end
+local function choose_random_music()
+    if #music_index == 0 then
+        return default_music
     end
-    if #music_files > 0 then
-        return music_files[math.random(#music_files)]
-    end
-    return nil
+    return music_index[math.random(#music_index)]
 end
 
 -- ============================================================
@@ -82,36 +101,29 @@ end
 
 local function stop_music(window, pane)
     -- Tắt mọi mpv (kể cả từ cửa sổ cũ)
-    os.execute("pkill -f 'wezterm-music' 2>/dev/null")
-    current_music_pid = nil
+    wezterm.background_child_process({ "pkill", "-f", "wezterm-music" })
 end
 
 local function play_music(file_path)
-    -- Dừng nhạc cũ trước khi phát mới (best-effort). Keep operations interactive-only.
-    stop_music()
-
     if not file_path then
         wezterm.log_error("Music file not found")
         return
     end
 
-    -- Use a tagged background spawn. Interactive hotkeys should always work.
-    local cmd = string.format("mpv --title=wezterm-music --no-video --loop --really-quiet '%s' >/dev/null 2>&1 & echo $!", file_path)
-    local f = io.popen(cmd)
-    local pid = nil
-    if f then
-        pid = f:read("*line")
-        f:close()
-    end
-    if pid then
-        wezterm.log_info("Playing (pid=" .. pid .. "): " .. file_path)
-    else
-        wezterm.log_error("Failed to spawn mpv for " .. file_path)
-    end
+    stop_music()
+    wezterm.background_child_process({
+        "mpv",
+        "--title=wezterm-music",
+        "--no-video",
+        "--loop",
+        "--really-quiet",
+        file_path,
+    })
+    wezterm.log_info("Playing: " .. file_path)
 end
 
 local function play_random_music(window, pane)
-    local music = pick_random_music(music_folder)
+    local music = choose_random_music()
     if music then
         play_music(music)
     else
@@ -173,7 +185,7 @@ config.keys = {
     {
         key = "b", mods = "CTRL|SHIFT",
         action = wezterm.action_callback(function(window)
-            local new_bg = pick_random_background(background_folder)
+            local new_bg = choose_random_background()
             if new_bg then
                 bg_image = new_bg
                 window:set_config_overrides({
@@ -220,8 +232,8 @@ config.keys = {
     -- music controls
     { key = "F6", action = wezterm.action_callback(play_random_music) },
     { key = "F7", action = wezterm.action_callback(stop_music) },
-    { key = "F8", action = wezterm.action_callback(function() os.execute("pactl set-sink-volume @DEFAULT_SINK@ +5%") end) },
-    { key = "F9", action = wezterm.action_callback(function() os.execute("pactl set-sink-volume @DEFAULT_SINK@ -5%") end) },
+    { key = "F8", action = wezterm.action_callback(function() wezterm.background_child_process({ "pactl", "set-sink-volume", "@DEFAULT_SINK@", "+5%" }) end) },
+    { key = "F9", action = wezterm.action_callback(function() wezterm.background_child_process({ "pactl", "set-sink-volume", "@DEFAULT_SINK@", "-5%" }) end) },
     { key = "F10", action = wezterm.action_callback(function() play_music(default_music) end) },
     -- tmux
     { key = "h", mods = "ALT", action = tmux_binding("h") },
@@ -252,12 +264,6 @@ wezterm.on("gui-startup", function()
         return
     end
     wezterm.log_info("WezTerm started in aesthetic mode; startup music is intentionally disabled")
-end)
-
-wezterm.on("window-close", function()
-    -- Dừng nhạc khi tất cả cửa sổ đóng (không còn GUI)
-    -- Nhưng vì pkill đã được gọi, nên chỉ cần dừng nếu muốn
-    -- Có thể bỏ trống nếu không muốn tắt nhạc khi đóng 1 cửa sổ
 end)
 
 return config
