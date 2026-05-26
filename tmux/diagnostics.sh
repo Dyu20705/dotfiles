@@ -104,6 +104,33 @@ check_config_path() {
   echo "$TMUX_CONF_PATH"
 }
 
+check_config_checksum() {
+  echo "=== CONFIG CHECKSUM ==="
+  if command -v tmux >/dev/null 2>&1; then
+    cfg=$(tmux display -p "#{config_file}" 2>/dev/null || echo "$TMUX_CONF_PATH")
+    echo "Config: $cfg"
+    if [ -f "$cfg" ]; then
+      if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$cfg"
+      elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$cfg"
+      else
+        echo "No sha256 utility found to compute checksum"
+      fi
+    else
+      echo "Config file not found: $cfg"
+    fi
+  else
+    echo "tmux not available"
+  fi
+}
+
+check_status_shellouts() {
+  echo "=== STATUS/SHELL-OUTS AUDIT ==="
+  echo "Searching tmux config files for '#(' occurrences (possible shell-outs)..."
+  grep -R --line-number "#(" "$PWD/tmux"/*.conf 2>/dev/null || echo "  none found in tmux/*.conf"
+}
+
 case "${1:-all}" in
   startup)
     measure_startup
@@ -113,6 +140,12 @@ case "${1:-all}" in
     ;;
   nested)
     check_nested_tmux
+    ;;
+  checksum)
+    check_config_checksum
+    ;;
+  audit)
+    check_status_shellouts
     ;;
   config)
     check_config_path
@@ -125,6 +158,10 @@ case "${1:-all}" in
     check_nested_tmux
     echo ""
     check_config_path
+    echo ""
+    check_config_checksum
+    echo ""
+    check_status_shellouts
     ;;
   *)
     echo "Usage: $0 [startup|shells|nested|config|all]"
