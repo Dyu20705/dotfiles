@@ -74,14 +74,12 @@ This configuration follows **8 core principles** for production-grade infrastruc
 ### Tmux Multiplexing
 - **Vim keybindings** throughout (hjkl navigation, Vi copy-mode)
 - **Smart pane splitting** with working directory preservation
-- **Catppuccin theme** with customized status bar (CPU, weather, battery, time)
+- **Native tmux UI** with deterministic status, workspace context, and pane metadata
 - **Seamless Vim↔Tmux navigation** via christoomey/vim-tmux-navigator
-- **Session resurrection** with tmux-resurrect (save/restore on demand)
-- **Continuous backup** with tmux-continuum (auto-save every 15 minutes)
+- **Session resurrection** with tmux-resurrect (manual save/restore only)
 - **System integration** via tmux-yank (OS-aware copy/paste detection)
-- **Fuzzy session/window search** with tmux-fzf
-- **Pomodoro timer** integration (custom scripts with notifications)
-- **Quick note access** (random todo task suggestion)
+- **Workspace orchestration** via session-manager and diagnostics scripts
+- **Clipboard and editor helpers** stay explicit instead of running in status polling
 
 ### Wezterm Terminal
 - **GPU-accelerated rendering** with true color support (24-bit)
@@ -1096,7 +1094,7 @@ Arguments:
 Features:
 - Audio notification (Ringing.mp3)
 - Desktop notification via `notify-send`
-- Status displayed in tmux status bar
+- Manual status display when invoked directly
 - Stop: `~/.config/dotfiles/tmux/pomodoro.sh stop`
 
 ### Random Note Picker
@@ -1114,7 +1112,7 @@ Output example:
 ⏰ Implement user authentication
 ```
 
-Used in tmux status bar to provide ambient task suggestions.
+Used as an explicit helper when you want a task suggestion without adding polling to tmux status.
 
 ### Wezterm Music & Background
 
