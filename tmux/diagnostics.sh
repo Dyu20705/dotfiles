@@ -86,11 +86,16 @@ check_nested_tmux() {
   echo "=== NESTED TMUX CHECK ==="
   echo ""
   if [ -n "$TMUX" ]; then
-    echo "Already in tmux. Config escape-time: $(tmux show-option escape-time | cut -d' ' -f2)"
+    echo "Already in tmux. Config escape-time: $(tmux show-option -g escape-time | awk '{print $2}')"
+    echo "Observability options (if present):"
+    tmux show-options -gqv @tmux_active_socket 2>/dev/null || true && echo "  active_socket: $(tmux show-options -gqv @tmux_active_socket 2>/dev/null)"
+    tmux show-options -gqv @tmux_config 2>/dev/null && echo "  config: $(tmux show-options -gqv @tmux_config 2>/dev/null)"
+    tmux show-options -gqv @tmux_nested 2>/dev/null && echo "  nested: $(tmux show-options -gqv @tmux_nested 2>/dev/null)"
+    tmux show-options -gqv @tmux_ssh 2>/dev/null && echo "  ssh: $(tmux show-options -gqv @tmux_ssh 2>/dev/null)"
   else
     echo "Not in tmux session. Create one to test nested behavior."
     echo ""
-    echo "To test: tmux new-session; tmux new-session -d -s nested"
+    echo "To test: tmux new-session; tmux attach-session; run: TMUX=1 tmux new-session -d -s nested" 
   fi
 }
 
