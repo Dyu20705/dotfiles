@@ -1,0 +1,32 @@
+# Shared shell environment for Bash login and interactive shells.
+# Keep this POSIX-compatible so .profile can source it.
+
+dotfiles_path_prepend() {
+    case ":$PATH:" in
+        *":$1:"*) ;;
+        *) PATH="$1${PATH:+:$PATH}"; export PATH ;;
+    esac
+}
+
+dotfiles_path_append() {
+    case ":$PATH:" in
+        *":$1:"*) ;;
+        *) PATH="${PATH:+$PATH:}$1"; export PATH ;;
+    esac
+}
+
+: "${DOTFILES_SHELL_MODE:=normal}"
+: "${EDITOR:=nvim}"
+: "${VISUAL:=nvim}"
+: "${LESS:=-R}"
+: "${LANG:=en_US.UTF-8}"
+: "${LC_ALL:=en_US.UTF-8}"
+
+export DOTFILES_SHELL_MODE EDITOR VISUAL LESS LANG LC_ALL
+
+dotfiles_path_prepend "$HOME/.local/bin"
+dotfiles_path_prepend "$HOME/.cargo/bin"
+dotfiles_path_prepend "$HOME/.npm-global/bin"
+dotfiles_path_prepend "$HOME/.npm/bin"
+dotfiles_path_prepend "$HOME/.fnm/bin"
+dotfiles_path_prepend "/usr/local/go/bin"

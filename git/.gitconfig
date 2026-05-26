@@ -2,4 +2,15 @@
 	name = Dyu200705
 	email = duy28092005yh@gmail.com
 [core]
-    editor = nvim
+	editor = nvim
+	pager = less -FRX
+[init]
+	defaultBranch = main
+[fetch]
+	prune = true
+[merge]
+	conflictStyle = zdiff3
+[diff]
+	algorithm = histogram
+[color]
+	ui = auto
