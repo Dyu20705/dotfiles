@@ -127,8 +127,8 @@ check_config_checksum() {
 
 check_status_shellouts() {
   echo "=== STATUS/SHELL-OUTS AUDIT ==="
-  echo "Searching tmux config files for '#(' occurrences (possible shell-outs)..."
-  grep -R --line-number "#(" "$PWD/tmux"/*.conf 2>/dev/null || echo "  none found in tmux/*.conf"
+  echo "Searching tmux directory for '#(' occurrences (possible shell-outs)..."
+  grep -R --line-number "#(" "$PWD/tmux" 2>/dev/null || echo "  none found in tmux/"
 }
 
 case "${1:-all}" in

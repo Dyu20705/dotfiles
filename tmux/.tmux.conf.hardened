@@ -117,6 +117,12 @@ set -g status-left "#[bg=#a6e3a1,fg=#1e1e2e]#{session_name}#[bg=default,fg=defau
 # and managed externally (e.g., via a background job or hourly cron)
 set -g status-right ""
 set -agF status-right "#([ -r ~/.cache/tmux_status ] && cat ~/.cache/tmux_status || echo '')"
+# Recommended safer pattern: avoid shell-outs in status by using a cached value.
+# Example (recommended):
+# run external updater (systemd timer or cron) to populate ~/.cache/tmux_status
+# and in tmux config use a tmux option to avoid invoking shell on redraw:
+# run-shell -b 'tmux set-option -gq @tmux_cached_status "$(cat ~/.cache/tmux_status 2>/dev/null || true)"'
+# set -agF status-right "#{@tmux_cached_status}"
 set -agF status-right " #[bg=#313244,fg=#a6adc8]%H:%M "
 
 # ── Section 11: Window Status Formatting ─────────────────────

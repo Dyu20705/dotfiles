@@ -95,6 +95,15 @@ set -g status-style fg=default,bg=default
 set -g status-right "#(bash ~/dotfiles/tmux/pomodoro.sh) #(bash ~/dotfiles/tmux/random_note.sh) "
 set -agF status-right "#{E:@catppuccin_status_weather}"
 set -agF status-right "#{E:@catppuccin_status_cpu}"
+# Note: the above `#(...)` constructs spawn shell processes on each redraw.
+# Recommended safer approach:
+# 1) Use `tmux/build_status_cache.sh` (provided) to aggregate heavy commands
+#    and write a single-line status into ~/.cache/tmux_status.
+# 2) Populate a tmux option from that cache at load-time or via an external
+#    updater (systemd timer):
+#    run-shell -b 'tmux set-option -gq @tmux_cached_status "$(cat ~/.cache/tmux_status 2>/dev/null || true)"'
+# 3) Use the option in the statusline (tmux-native format, no shell-outs):
+#    set -g status-right "#{@tmux_cached_status}"
 
 # Pin (chỉ hiện trên laptop)
 set -agF status-right "#[bg=#{@thm_green},fg=#{@thm_crust}]#[reverse]█#[noreverse]󰁹 "
