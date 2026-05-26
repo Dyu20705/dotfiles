@@ -93,5 +93,4 @@ node_modules/
 .wakatime*
 
 bench/
-.zcompdump
 docs/
