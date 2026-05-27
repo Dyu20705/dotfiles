@@ -37,6 +37,57 @@ collect_battery() {
   fi
 }
 
+collect_cpu() {
+  # lightweight /proc sampling: take two samples 0.1s apart
+  if [ -r /proc/stat ]; then
+    read -r cpu a b c d e f g h i j < /proc/stat || return
+    prev_idle=$((d + f))
+    prev_total=$((a + b + c + d + e + f + g + h + i + j))
+    sleep 0.1
+    read -r cpu2 a2 b2 c2 d2 e2 f2 g2 h2 i2 j2 < /proc/stat || return
+    idle=$((d2 + f2))
+    total=$((a2 + b2 + c2 + d2 + e2 + f2 + g2 + h2 + i2 + j2))
+    diff_idle=$((idle - prev_idle))
+    diff_total=$((total - prev_total))
+    if [ "$diff_total" -gt 0 ]; then
+      usage=$((100 * (diff_total - diff_idle) / diff_total))
+      echo "$usage"
+    fi
+  fi
+}
+
+collect_weather() {
+  # Cached external call to wttr.in (very small); keep short timeout and cache externally
+  CACHE="$XDG_CACHE_HOME"/tmux_weather_cache
+  CACHE_TTL=${WEATHER_TTL:-900}
+  if [ -r "$CACHE" ]; then
+    AGE=$(( $(date +%s) - $(stat -c%Y "$CACHE" 2>/dev/null || stat -f%m "$CACHE" 2>/dev/null || echo 0) ))
+    if [ "$AGE" -lt "$CACHE_TTL" ]; then
+      cat "$CACHE"
+      return
+    fi
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    OUT=$(curl -s --max-time 3 "https://wttr.in/?format=1" 2>/dev/null || true)
+    if [ -n "$OUT" ]; then
+      printf "%s" "$OUT" > "$CACHE" 2>/dev/null || true
+      echo "$OUT"
+    fi
+  fi
+}
+
+collect_todo_count() {
+  TODO_DIR="$HOME/Documents/git/scratch"
+  if [ -d "$TODO_DIR" ] && command -v timeout >/dev/null 2>&1; then
+    LATEST=$(timeout 0.2 find "$TODO_DIR" -maxdepth 1 -name 'todo_*.md' -print -quit 2>/dev/null | head -n1)
+    if [ -n "$LATEST" ] && [ -r "$LATEST" ]; then
+      cnt=$(timeout 0.2 grep -cE '^- \[ \]' "$LATEST" 2>/dev/null || true)
+      [ -n "$cnt" ] && echo "$cnt"
+    fi
+  fi
+}
+
 # Build a single-line status. Keep components optional and small.
 {
   echo -n ""
@@ -46,8 +97,19 @@ collect_battery() {
   [ -n "$rn" ] && echo -n "$rn "
   mem=$(collect_memory_pressure 2>/dev/null)
   [ -n "$mem" ] && echo -n "${mem}% "
+  cpu=$(collect_cpu 2>/dev/null)
+  [ -n "$cpu" ] && echo -n "CPU ${cpu}% | "
+  todo=$(collect_todo_count 2>/dev/null)
+  if [ -n "$todo" ]; then
+    echo -n "TODO: ${todo} | "
+  fi
   bat=$(collect_battery 2>/dev/null)
-  [ -n "$bat" ] && echo -n "${bat}%"
+  [ -n "$bat" ] && echo -n "🔋 ${bat}%"
+  # weather last so it can be longer running/cached
+  weather=$(collect_weather 2>/dev/null)
+  if [ -n "$weather" ]; then
+    echo -n " | ${weather}"
+  fi
   echo
 } > "$TMPFILE"
 
