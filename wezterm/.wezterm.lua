@@ -170,7 +170,29 @@ config.term = "xterm-256color"
 -- TMUX
 -- ============================================================
 
-config.default_prog = { "tmux", "new-session", "-A", "-s", "main" }
+local function find_cmd(cmd)
+    local ok, handle = pcall(io.popen, 'command -v ' .. cmd .. ' 2>/dev/null')
+    if not ok or handle == nil then
+        return nil
+    end
+    local path = handle:read("*a") or ""
+    handle:close()
+    path = path:gsub("%s+$", "")
+    if path == "" then
+        return nil
+    end
+    return path
+end
+
+local tmux_path = find_cmd("tmux")
+if tmux_path then
+    config.default_prog = { tmux_path, "new-session", "-A", "-s", "main" }
+else
+    -- Fall back to the user's shell if tmux isn't available in PATH
+    local shell = os.getenv("SHELL") or "/bin/sh"
+    config.default_prog = { shell, "-l" }
+    wezterm.log_info("tmux not found in PATH, falling back to shell: " .. shell)
+end
 
 local function tmux_binding(key)
     return wezterm.action.SendString("\x01" .. key)
