@@ -356,7 +356,7 @@ sudo apt install -y \
   jq yq \
   ripgrep fzf fd-find bat exa direnv \
   tmux wezterm \
-  docker.io kubectl \
+  docker.io docker-compose-plugin kubectl \
   openssh-client openssh-server
 
 # Install cargo-based tools (Rust ecosystem)
@@ -690,9 +690,14 @@ nvim terraform/main.tf
 
 ### Docker & Container Management
 
+The root `docker-compose.yaml` defines a `lazydocker` service that mounts the Docker socket and persists its config under `~/.config/jesseduffield/lazydocker`.
+
 ```bash
-# Lazydocker TUI
-lazydocker
+# Lazydocker TUI via Docker Compose
+docker compose run --rm lazydocker
+
+# If your system still exposes the legacy binary name
+docker-compose run --rm lazydocker
 
 # Terminal with Dockerfile LSP
 nvim Dockerfile
