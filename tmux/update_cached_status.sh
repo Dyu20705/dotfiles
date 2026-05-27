@@ -6,6 +6,14 @@ if [ -r "$CACHE_FILE" ]; then
   val=$(cat "$CACHE_FILE" 2>/dev/null || true)
   # Trim trailing newlines
   val=$(printf "%s" "$val" | tr -d '\n')
-  [ -n "$val" ] && tmux set-option -gq @tmux_cached_status "$val" 2>/dev/null || tmux set-option -gq @tmux_cached_status "" 2>/dev/null
+  # Sanitize hashes to avoid tmux format injection (escape #)
+  safe=$(printf "%s" "$val" | sed 's/#/##/g')
+  if [ -n "$safe" ]; then
+    tmux set-option -gq @tmux_cached_status "$safe" 2>/dev/null || tmux set-option -gq @tmux_cached_status "" 2>/dev/null
+    # Force clients to refresh less often by using larger status-interval and refresh on update
+    tmux refresh-client -S 2>/dev/null || true
+  else
+    tmux set-option -gq @tmux_cached_status "" 2>/dev/null || true
+  fi
 fi
 exit 0

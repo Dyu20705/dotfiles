@@ -38,28 +38,47 @@ collect_battery() {
 }
 
 collect_cpu() {
-  # lightweight /proc sampling: take two samples 0.1s apart
-  if [ -r /proc/stat ]; then
-    read -r cpu a b c d e f g h i j < /proc/stat || return
-    prev_idle=$((d + f))
-    prev_total=$((a + b + c + d + e + f + g + h + i + j))
-    sleep 0.1
-    read -r cpu2 a2 b2 c2 d2 e2 f2 g2 h2 i2 j2 < /proc/stat || return
-    idle=$((d2 + f2))
-    total=$((a2 + b2 + c2 + d2 + e2 + f2 + g2 + h2 + i2 + j2))
-    diff_idle=$((idle - prev_idle))
-    diff_total=$((total - prev_total))
-    if [ "$diff_total" -gt 0 ]; then
-      usage=$((100 * (diff_total - diff_idle) / diff_total))
-      echo "$usage"
+  # Non-blocking CPU sampling using cached previous values.
+  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux"
+  PREV_FILE="$CACHE_DIR/cpu_prev"
+  mkdir -p "$CACHE_DIR"
+  if [ ! -r /proc/stat ]; then
+    return
+  fi
+  read -r cpu a b c d e f g h i j < /proc/stat || return
+  idle=$((d + f))
+  total=$((a + b + c + d + e + f + g + h + i + j))
+
+  if [ -r "$PREV_FILE" ]; then
+    read -r prev_total prev_idle prev_ts < "$PREV_FILE" || true
+    # only use prev if it's recent enough (120s)
+    now=$(date +%s)
+    if [ -n "$prev_ts" ] && [ $((now - prev_ts)) -lt 120 ]; then
+      diff_total=$((total - prev_total))
+      diff_idle=$((idle - prev_idle))
+      if [ "$diff_total" -gt 0 ]; then
+        usage=$((100 * (diff_total - diff_idle) / diff_total))
+        # write current sample for next run
+        printf "%s %s %s" "$total" "$idle" "$now" > "$PREV_FILE" 2>/dev/null || true
+        echo "$usage"
+        return
+      fi
     fi
   fi
+
+  # No usable previous sample: write current and exit empty (so status shows nothing)
+  now=$(date +%s)
+  printf "%s %s %s" "$total" "$idle" "$now" > "$PREV_FILE" 2>/dev/null || true
+  return
 }
 
 collect_weather() {
-  # Cached external call to wttr.in (very small); keep short timeout and cache externally
-  CACHE="$XDG_CACHE_HOME"/tmux_weather_cache
+  # Cached external call to wttr.in (very small); keep short timeout and cache externally.
+  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux"
+  mkdir -p "$CACHE_DIR"
+  CACHE="$CACHE_DIR/weather"
   CACHE_TTL=${WEATHER_TTL:-900}
+
   if [ -r "$CACHE" ]; then
     AGE=$(( $(date +%s) - $(stat -c%Y "$CACHE" 2>/dev/null || stat -f%m "$CACHE" 2>/dev/null || echo 0) ))
     if [ "$AGE" -lt "$CACHE_TTL" ]; then
@@ -68,23 +87,37 @@ collect_weather() {
     fi
   fi
 
-  if command -v curl >/dev/null 2>&1; then
-    OUT=$(curl -s --max-time 3 "https://wttr.in/?format=1" 2>/dev/null || true)
-    if [ -n "$OUT" ]; then
-      printf "%s" "$OUT" > "$CACHE" 2>/dev/null || true
-      echo "$OUT"
+  if ! command -v curl >/dev/null 2>&1; then
+    return
+  fi
+
+  # Try fetch, but do not overwrite cache on failure.
+  OUT=$(curl -s --max-time 3 "https://wttr.in/?format=1" 2>/dev/null || true)
+  if [ -n "$OUT" ]; then
+    printf "%s" "$OUT" > "$CACHE" 2>/dev/null || true
+    echo "$OUT"
+  else
+    # fallback: return old cache if present
+    if [ -r "$CACHE" ]; then
+      cat "$CACHE"
     fi
   fi
 }
 
 collect_todo_count() {
-  TODO_DIR="$HOME/Documents/git/scratch"
-  if [ -d "$TODO_DIR" ] && command -v timeout >/dev/null 2>&1; then
-    LATEST=$(timeout 0.2 find "$TODO_DIR" -maxdepth 1 -name 'todo_*.md' -print -quit 2>/dev/null | head -n1)
-    if [ -n "$LATEST" ] && [ -r "$LATEST" ]; then
-      cnt=$(timeout 0.2 grep -cE '^- \[ \]' "$LATEST" 2>/dev/null || true)
-      [ -n "$cnt" ] && echo "$cnt"
+  # Prefer configurable todo file via tmux option @todo_file, else default to a single known path.
+  TODO_FILE_DEFAULT="$HOME/Documents/git/scratch/todo.md"
+  TODO_FILE="$TODO_FILE_DEFAULT"
+  if command -v tmux >/dev/null 2>&1; then
+    t=$(tmux show-option -gqv @todo_file 2>/dev/null || true)
+    if [ -n "$t" ]; then
+      # expand ~ if present
+      TODO_FILE=${t/#~/$HOME}
     fi
+  fi
+  if [ -r "$TODO_FILE" ] && command -v timeout >/dev/null 2>&1; then
+    cnt=$(timeout 0.2 grep -cE '^- \[ \]' "$TODO_FILE" 2>/dev/null || true)
+    [ -n "$cnt" ] && echo "$cnt"
   fi
 }
 
