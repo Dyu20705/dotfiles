@@ -4,13 +4,35 @@
 [core]
 	editor = nvim
 	pager = less -FRX
+[core]
+	excludesFile = ~/.gitignore
 [init]
 	defaultBranch = main
 [fetch]
 	prune = true
+[push]
+	default = simple
 [merge]
 	conflictStyle = zdiff3
 [diff]
 	algorithm = histogram
+	tool = nvimdiff
 [color]
 	ui = auto
+[difftool "nvimdiff"]
+	cmd = nvim -d "$LOCAL" "$REMOTE"
+[merge]
+	tool = nvimdiff
+[mergetool "nvimdiff"]
+	cmd = nvim -d "$LOCAL" "$REMOTE" -ancestor "$BASE" -merge "$MERGED"
+	trustExitCode = true
+[alias]
+	st = status
+	co = checkout
+	br = branch
+	ci = commit
+	ca = commit -a
+	d = diff
+	lg = log --graph --decorate --oneline --date=relative --all
+	last = log -1 --stat
+	unstage = reset HEAD --
