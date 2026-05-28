@@ -1,7 +1,6 @@
-return
-{
+return {
   'nvim-treesitter/nvim-treesitter',
-  lazy = false,
-  build = ':TSUpdate',
+  event = "VeryLazy",
+  -- Avoid running :TSUpdate automatically on startup; update parsers manually.
 }
 
