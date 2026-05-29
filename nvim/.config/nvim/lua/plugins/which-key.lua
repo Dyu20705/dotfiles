@@ -37,6 +37,7 @@ return {
     local wk = require('which-key')
     wk.setup(opts)
     wk.add({
+      { '<leader>d', group = 'Debug' },
       { '<leader>f', group = 'Tìm kiếm/Telescope' },
       { '<leader>g', group = 'Git' },
       { '<leader>h', group = 'Git hunks' },
