@@ -1,0 +1,52 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  markdown:
+    name: Markdown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --global markdownlint-cli2
+      - run: markdownlint-cli2 README.md "docs/**/*.md"
+
+  shell-yaml:
+    name: Shell and YAML
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y shellcheck
+      - run: python3 -m pip install --user yamllint
+      - name: Bash syntax
+        run: |
+          find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r bash -n
+      - name: ShellCheck
+        run: |
+          find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
+      - name: YAML lint
+        run: |
+          ~/.local/bin/yamllint -d relaxed docker-compose.yaml lazygit/config.yml .github/workflows/validate.yml
+
+  lua:
+    name: Lua
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update
+      - run: sudo apt-get install -y lua5.4 luarocks
+      - run: sudo luarocks install luacheck
+      - name: Lua syntax
+        run: |
+          find nvim/.config/nvim/lua wezterm -type f -name '*.lua' -print0 | while IFS= read -r -d '' file; do
+            luac5.4 -p "$file"
+          done
+      - name: Luacheck
+        run: |
+          luacheck nvim/.config/nvim/lua wezterm/.wezterm.lua

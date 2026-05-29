@@ -92,5 +92,14 @@ node_modules/
 # =========================
 .wakatime*
 
+# =========================
+# Local docs and benchmarks
+# =========================
 bench/
 docs/
+
+# =========================
+# Local-only assets and generated helpers
+# =========================
+tmux/tmux_Ringing.mp3
+wezterm/sd/
