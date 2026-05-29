@@ -5,7 +5,7 @@ return {
         'nvim-tree/nvim-web-devicons',
         'catppuccin/nvim',
   },
-  lazy = false,
+  event = 'VeryLazy',
   opts = {
     options = {
       theme = 'catppuccin',
