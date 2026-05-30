@@ -1,7 +1,7 @@
 -- Statusline hiện đại, nhiều thông tin, phối màu Catppuccin
 return {
   'nvim-lualine/lualine.nvim',
-  dependencies = { 
+    dependencies = {
         'nvim-tree/nvim-web-devicons',
         'catppuccin/nvim',
   },

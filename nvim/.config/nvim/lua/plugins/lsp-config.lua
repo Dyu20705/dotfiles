@@ -1,13 +1,13 @@
 return {
     {
-    "williamboman/mason.nvim",
+        "williamboman/mason.nvim",
     cmd = { "Mason", "MasonInstall", "MasonUninstall", "MasonLog" },
     config = function() 
         require("mason").setup()
     end,
     },
     {
-    "williamboman/mason-lspconfig.nvim",
+        "williamboman/mason-lspconfig.nvim",
     event = { "BufReadPre", "BufNewFile" },
     opts = {
         auto_install = false,
@@ -22,7 +22,7 @@ return {
     },
     },
     {
-    "neovim/nvim-lspconfig",
+        "neovim/nvim-lspconfig",
     event = { "BufReadPre", "BufNewFile" },
     dependencies = { "saghen/blink.cmp" },
     config = function()
