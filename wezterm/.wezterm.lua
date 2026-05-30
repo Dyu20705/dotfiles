@@ -21,9 +21,6 @@ local music_folder = home .. "/dotfiles/wezterm/sd"
 local bg_image = os.getenv("DOTFILES_WEZTERM_BG") or (home .. "/dotfiles/wezterm/bg/bg.png")
 local default_music = music_folder .. "/bg.mp3"
 
-local background_index = {}
-local music_index = {}
-
 local function has_suffix(path, suffixes)
     local lower = string.lower(path)
     for _, suffix in ipairs(suffixes) do
@@ -55,10 +52,8 @@ local function build_index(pattern, suffixes, fallback)
     return entries
 end
 
-background_index = build_index(background_folder .. "/*", { ".png", ".jpg", ".jpeg", ".webp" }, bg_image)
-music_index = build_index(music_folder .. "/*", { ".mp3", ".flac", ".wav", ".m4a" }, default_music)
-
-local background_cursor = 1
+local background_index = build_index(background_folder .. "/*", { ".png", ".jpg", ".jpeg", ".webp" }, bg_image)
+local music_index = build_index(music_folder .. "/*", { ".mp3", ".flac", ".wav", ".m4a" }, default_music)
 
 -- ============================================================
 -- RANDOM BACKGROUND
@@ -69,19 +64,6 @@ local function choose_random_background()
         return bg_image
     end
     return background_index[math.random(#background_index)]
-end
-
-local function choose_next_background()
-    if #background_index == 0 then
-        return bg_image
-    end
-
-    local selected = background_index[background_cursor]
-    background_cursor = background_cursor + 1
-    if background_cursor > #background_index then
-        background_cursor = 1
-    end
-    return selected
 end
 
 -- ============================================================
@@ -99,7 +81,7 @@ end
 -- MUSIC CONTROL
 -- ============================================================
 
-local function stop_music(window, pane)
+local function stop_music(_window, _pane)
     -- Tắt mọi mpv (kể cả từ cửa sổ cũ)
     wezterm.background_child_process({ "pkill", "-f", "wezterm-music" })
 end
@@ -122,7 +104,7 @@ local function play_music(file_path)
     wezterm.log_info("Playing: " .. file_path)
 end
 
-local function play_random_music(window, pane)
+local function play_random_music(_window, _pane)
     local music = choose_random_music()
     if music then
         play_music(music)
