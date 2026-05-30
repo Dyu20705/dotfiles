@@ -4,15 +4,6 @@ return {
   version = 'v2.*',                     -- phiên bản ổn định
   dependencies = { 'rafamadriz/friendly-snippets' },
   event = 'InsertEnter',
-  keys = {
-    { '<C-k>', function() return require('luasnip').jump(1) end,  mode = { 'i', 's' }, desc = 'Nhảy tới placeholder tiếp theo' },
-    { '<C-j>', function() return require('luasnip').jump(-1) end, mode = { 'i', 's' }, desc = 'Nhảy về placeholder trước' },
-    { '<C-l>', function()
-        if require('luasnip').choice_active() then
-          require('luasnip').change_choice(1)
-        end
-      end, mode = { 'i', 's' }, desc = 'Chuyển lựa chọn trong snippet' },
-  },
   opts = {
     history = true,
     updateevents = 'TextChanged,TextChangedI',

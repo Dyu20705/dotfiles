@@ -13,6 +13,7 @@ return {
         auto_install = false,
         ensure_installed = {
             "clangd",   -- C/C++
+            "lua_ls",   -- Neovim Lua
             "zls",      -- Zig
             "pyright",  -- Python
             "rust_analyzer", -- Rust
@@ -23,38 +24,59 @@ return {
     {
     "neovim/nvim-lspconfig",
     event = { "BufReadPre", "BufNewFile" },
-    dependencies = { "hrsh7th/cmp-nvim-lsp" },
+    dependencies = { "saghen/blink.cmp" },
     config = function()
-        local capabilities = require("cmp_nvim_lsp").default_capabilities()
+        local capabilities = require("blink.cmp").get_lsp_capabilities()
+
+        local function setup(server_name, server_config)
+            server_config = server_config or {}
+            server_config.capabilities = vim.tbl_deep_extend("force", {}, capabilities, server_config.capabilities or {})
+            vim.lsp.config(server_name, server_config)
+        end
 
         -- C / C++
-        vim.lsp.config["clangd"] = {
-            capabilities = capabilities,
-        }
+        setup("clangd")
+
+        -- Lua
+        setup("lua_ls", {
+            settings = {
+                Lua = {
+                    runtime = {
+                        version = "LuaJIT",
+                    },
+                    diagnostics = {
+                        globals = { "vim" },
+                    },
+                    workspace = {
+                        checkThirdParty = false,
+                        library = vim.api.nvim_get_runtime_file("", true),
+                    },
+                    telemetry = {
+                        enable = false,
+                    },
+                    completion = {
+                        callSnippet = "Replace",
+                    },
+                },
+            },
+        })
 
         -- Zig
-        vim.lsp.config["zls"] = {
-            capabilities = capabilities,
-        }
+        setup("zls")
 
         -- Python
-        vim.lsp.config["pyright"] = {
-            capabilities = capabilities,
-        }
+        setup("pyright")
 
         -- Rust
-        vim.lsp.config["rust_analyzer"] = {
-            capabilities = capabilities,
-        }
+        setup("rust_analyzer")
 
         -- Docker
-        vim.lsp.config["dockerls"] = {
-            capabilities = capabilities,
-        }
+        setup("dockerls")
 
         -- enable
         vim.lsp.enable({
             "clangd",
+            "lua_ls",
             "zls",
             "pyright",
             "rust_analyzer",
