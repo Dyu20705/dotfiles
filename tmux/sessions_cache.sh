@@ -35,6 +35,8 @@ chmod 644 "$OUTFILE"
 
 # Also push into tmux option for immediate availability
 VAL=$(cat "$OUTFILE" 2>/dev/null || true)
-[ -n "$VAL" ] && tmux set-option -gq @tmux_sessions "$VAL" 2>/dev/null || true
+if [ -n "$VAL" ]; then
+  tmux set-option -gq @tmux_sessions "$VAL" 2>/dev/null || true
+fi
 
 exit 0

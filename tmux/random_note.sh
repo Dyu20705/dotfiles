@@ -45,22 +45,22 @@ if [ -z "$LATEST_FILE" ] || [ ! -r "$LATEST_FILE" ]; then
 fi
 
 # Parse tasks (with timeout)
-OUTPUT=$(timeout 0.3 bash -c '
+OUTPUT=$(timeout 0.3 bash -c "
 tasks=()
 while IFS= read -r line; do
-  if [[ "$line" =~ ^-\ \[\ \]\ ]]; then
-    task="${line#- [ ] }"
-    tasks+=("$task")
+  if [[ \"\$line\" =~ ^-\\ \\[\\ \\]\\ ]]; then
+    task=\"\${line#- [ ] }\"
+    tasks+=(\"\$task\")
   fi
-done < "$1"
+done < \"\$1\"
 
-if [ ${#tasks[@]} -eq 0 ]; then
-  echo "🎧 All done!"
+if [ \${#tasks[@]} -eq 0 ]; then
+  echo \"🎧 All done!\"
 else
-  idx=$((RANDOM % ${#tasks[@]}))
-  echo "⏰ ${tasks[$idx]}"
+  idx=\$((RANDOM % \${#tasks[@]}))
+  echo \"⏰ \${tasks[\$idx]}\"
 fi
-' -- "$LATEST_FILE" 2>/dev/null)
+" -- "$LATEST_FILE" 2>/dev/null)
 
 if [ -n "$OUTPUT" ]; then
   echo "$OUTPUT" > "$CACHE_FILE"

@@ -16,18 +16,6 @@ set +e
 
 OS="$(uname)"
 
-# Sound playback with timeout (don't block tmux)
-play_sound() {
-  local file="$HOME/dotfiles/tmux/Ringing.mp3"
-  [ ! -f "$file" ] && return 0
-  
-  if [ "$OS" = "Darwin" ]; then
-    timeout 2 afplay "$file" &>/dev/null &
-  else
-    timeout 2 paplay "$file" 2>/dev/null &
-  fi
-}
-
 STATE_FILE="$HOME/.cache/pomo.json"
 mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null
 
@@ -67,29 +55,39 @@ fi
 # Display current status
 [ ! -f "$STATE_FILE" ] && exit 0
 
-# Parse and display (with timeout)
-timeout 0.15 bash -c '
-  state=$(cat "$1" 2>/dev/null)
-  [ -z "$state" ] && exit 0
-  
-  if command -v jq &>/dev/null; then
-    current=$(echo "$state" | jq -r ".current // 1" 2>/dev/null)
-    sessions=$(echo "$state" | jq -r ".sessions // 1" 2>/dev/null)
-    mode=$(echo "$state" | jq -r ".mode // \"work\"" 2>/dev/null)
-    start=$(echo "$state" | jq -r ".start // 0" 2>/dev/null)
-  else
-    # Fallback parsing without jq (simple extraction)
-    current=$(echo "$state" | grep -o "\"current\":[0-9]*" | cut -d: -f2)
-    sessions=$(echo "$state" | grep -o "\"sessions\":[0-9]*" | cut -d: -f2)
-    mode=$(echo "$state" | grep -o "\"mode\":\"[^\"]*" | cut -d: -f2 | tr -d "\"")
-    start=$(echo "$state" | grep -o "\"start\":[0-9]*" | cut -d: -f2)
+get_state_value() {
+  local state_key=$1
+  local state_json=$2
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -r ".$state_key // empty" <<<"$state_json" 2>/dev/null
+    return
   fi
-  
-  [ -z "$current" ] && exit 0
-  
-  elapsed=$(($(date +%s) - start))
-  icon=$([ "$mode" = "work" ] && echo "🍅" || echo "☕")
-  printf "%s %d/%d +%dm\n" "$icon" "$current" "$sessions" "$((elapsed / 60))"
-' -- "$STATE_FILE" 2>/dev/null
+
+  case "$state_key" in
+    current) printf '%s' "$state_json" | grep -o '"current":[0-9]*' | cut -d: -f2 ;;
+    sessions) printf '%s' "$state_json" | grep -o '"sessions":[0-9]*' | cut -d: -f2 ;;
+    mode) printf '%s' "$state_json" | grep -o '"mode":"[^"]*' | cut -d: -f2 | tr -d '"' ;;
+    start) printf '%s' "$state_json" | grep -o '"start":[0-9]*' | cut -d: -f2 ;;
+  esac
+}
+
+state=$(timeout 0.15 cat "$STATE_FILE" 2>/dev/null)
+[ -z "$state" ] && exit 0
+
+current=$(get_state_value current "$state")
+sessions=$(get_state_value sessions "$state")
+mode=$(get_state_value mode "$state")
+start=$(get_state_value start "$state")
+
+[ -z "$current" ] && exit 0
+
+elapsed=$(( $(date +%s) - start ))
+if [ "$mode" = "work" ]; then
+  icon="🍅"
+else
+  icon="☕"
+fi
+printf '%s %d/%d +%dm\n' "$icon" "$current" "$sessions" "$((elapsed / 60))"
 
 exit 0

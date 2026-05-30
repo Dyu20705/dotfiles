@@ -33,7 +33,7 @@ collect_memory_pressure() {
 collect_battery() {
   # Example: try upower or /sys/class/power_supply
   if command -v upower >/dev/null 2>&1; then
-    upower -i $(upower -e | grep BAT | head -n1) 2>/dev/null | awk '/percentage/ {print $2}' | tr -d '%'
+    upower -i "$(upower -e | grep BAT | head -n1)" 2>/dev/null | awk '/percentage/ {print $2}' | tr -d '%'
   fi
 }
 

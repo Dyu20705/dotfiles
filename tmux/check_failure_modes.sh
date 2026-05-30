@@ -10,7 +10,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 echo "Failure mode checks (read-only)"
 
 # Clipboard tools
-echo "\n1) Clipboard tools availability"
+printf '\n1) Clipboard tools availability\n'
 for cmd in wl-paste xclip pbpaste clip.exe; do
   if command -v "$cmd" >/dev/null 2>&1; then
     echo "  - $cmd: available"
@@ -20,7 +20,7 @@ for cmd in wl-paste xclip pbpaste clip.exe; do
 done
 
 # TPM/plugins presence
-echo "\n2) TPM / plugin checks"
+printf '\n2) TPM / plugin checks\n'
 if [ -d "$HOME/.tmux/plugins/tpm" ]; then
   echo "  - TPM: installed"
 else
@@ -28,10 +28,10 @@ else
 fi
 
 # tmux-resurrect or restore files
-echo "\n3) Restore / resurrect files"
+printf '\n3) Restore / resurrect files\n'
 if [ -d "$HOME/.tmux/resurrect" ]; then
   echo "  - resurrect dir found"
-  ls -1 "$HOME/.tmux/resurrect" | sed -n '1,10p' || true
+  find "$HOME/.tmux/resurrect" -maxdepth 1 -type f | sed -n '1,10p' || true
 else
   echo "  - resurrect dir not found (~/.tmux/resurrect)"
 fi
@@ -46,7 +46,7 @@ fi
 
 # TPM plugin scripts executable checks (best-effort)
 if [ -d "$HOME/.tmux/plugins/tmux-resurrect/scripts" ]; then
-  echo "\n4) tmux-resurrect script checks"
+  printf '\n4) tmux-resurrect script checks\n'
   for s in save.sh restore.sh; do
     if [ -x "$HOME/.tmux/plugins/tmux-resurrect/scripts/$s" ]; then
       echo "  - $s: executable"
@@ -57,7 +57,7 @@ if [ -d "$HOME/.tmux/plugins/tmux-resurrect/scripts" ]; then
 fi
 
 # Session existence (dry-run) - will not start anything
-echo "\n5) Session name collision checks"
+printf '\n5) Session name collision checks\n'
 EXAMPLES=(default harness_test)
 for name in "${EXAMPLES[@]}"; do
   if tmux has-session -t "$name" 2>/dev/null; then
@@ -68,4 +68,4 @@ for name in "${EXAMPLES[@]}"; do
 done
 
 # Report summary
-echo "\nSummary: review missing items above. Scripts are conservative and avoid destructive actions."
+printf '\nSummary: review missing items above. Scripts are conservative and avoid destructive actions.\n'
