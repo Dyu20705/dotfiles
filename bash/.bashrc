@@ -94,3 +94,4 @@ dotfiles-shell-diagnostics() {
     printf 'nvim=%s\n' "$(command -v nvim 2>/dev/null || printf '<missing>')"
     printf 'tmux_bin=%s\n' "$(command -v tmux 2>/dev/null || printf '<missing>')"
 }
+. "$HOME/.cargo/env"
