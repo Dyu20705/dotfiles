@@ -1,24 +1,22 @@
-# =========================
 # OS
-# =========================
 .DS_Store
 Thumbs.db
 
-# =========================
-# Cache
-# =========================
+# Cache and temporary files
 .cache/
 tmp/
 temp/
-
-# =========================
-# Logs
-# =========================
 *.log
+*.bak
+*.tmp
 
-# =========================
-# Secrets
-# =========================
+# Shell generated state
+.zcompdump*
+zsh/.zcompdump*
+.zsh_history
+.bash_history
+
+# Secrets and local identity
 .env
 .env.*
 *.pem
@@ -26,14 +24,10 @@ temp/
 *.crt
 *.p12
 *.secret
-
-# SSH / GPG
 .ssh/
 .gnupg/
 
-# =========================
-# Audio / Video / Assets
-# =========================
+# Audio, video and local assets
 *.mp3
 *.wav
 *.flac
@@ -42,16 +36,14 @@ temp/
 *.mkv
 *.mov
 
-# Large binaries
+# Large archives
 *.zip
 *.tar
 *.gz
 *.7z
 *.iso
 
-# =========================
-# Neovim
-# =========================
+# Neovim generated state
 lazy-lock.json.bak
 lazy/
 mason/
@@ -59,47 +51,27 @@ undo/
 swap/
 backup/
 sessions/
+.luacheckcache
 
-# =========================
-# Java
-# =========================
+# Language and build outputs
 *.class
 target/
 build/
 out/
-
-# =========================
-# Python
-# =========================
 __pycache__/
 *.pyc
 venv/
 .venv/
-
-# =========================
-# Node
-# =========================
 node_modules/
 
-# =========================
 # IDE
-# =========================
 .idea/
 .vscode/
 
-# =========================
 # WakaTime
-# =========================
 .wakatime*
 
-# =========================
-# Local docs and benchmarks
-# =========================
+# Local benchmarks and generated helpers
 bench/
-docs/
-
-# =========================
-# Local-only assets and generated helpers
-# =========================
 tmux/tmux_Ringing.mp3
 wezterm/sd/
