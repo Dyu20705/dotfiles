@@ -15,24 +15,25 @@ jobs:
   markdown:
     name: Markdown
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - run: npm install --global markdownlint-cli2
       - run: markdownlint-cli2 README.md "docs/**/*.md"
 
   static:
     name: Static configuration checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install validation tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq zsh shellcheck lua5.4 yamllint tmux docker-compose-v2
+          sudo apt-get install -y jq zsh shellcheck lua5.4 yamllint tmux
       - name: Run static checks
         run: bash scripts/test.sh --profile static
 
@@ -45,6 +46,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Install runtime tools on Ubuntu
