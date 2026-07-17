@@ -22,11 +22,11 @@ DOTFILES_SHELL_MODE=${DOTFILES_SHELL_MODE:-normal}
 DOTFILES_SHELL_REMOTE=0
 DOTFILES_SHELL_IN_TMUX=0
 
-if [[ -n "$CI" || -n "$SSH_CONNECTION" || -n "$SSH_TTY" ]]; then
+if [[ -n "${CI:-}" || -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]]; then
   DOTFILES_SHELL_REMOTE=1
 fi
 
-if [[ -n "$TMUX" ]]; then
+if [[ -n "${TMUX:-}" ]]; then
   DOTFILES_SHELL_IN_TMUX=1
 fi
 
@@ -91,7 +91,8 @@ alias sudo='sudo '
 
 mkcd() {
   [[ $# -eq 1 ]] || { print -u2 'usage: mkcd <directory>'; return 2; }
-  mkdir -p -- "$1" && cd -- "$1"
+  mkdir -p -- "$1" || return
+  cd -- "$1" || return
 }
 
 edit() {
@@ -135,23 +136,27 @@ else
   fi
 fi
 
-autoload -Uz compinit
-zcompdump_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
-zcompdump_file="$zcompdump_dir/zcompdump-$ZSH_VERSION"
-mkdir -p "$zcompdump_dir"
+# Completion needs a real terminal. Headless validation and automation should
+# still be able to load an interactive shell without compinit opening /dev/tty.
+if [[ "${DOTFILES_SKIP_COMPLETION:-0}" != 1 && ( -t 0 || -t 1 ) ]]; then
+  autoload -Uz compinit
+  zcompdump_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  zcompdump_file="$zcompdump_dir/zcompdump-$ZSH_VERSION"
+  mkdir -p "$zcompdump_dir"
 
-if [[ -f "$zcompdump_file" ]]; then
-  compinit -d "$zcompdump_file" || {
-    rm -f "$zcompdump_file"
+  if [[ -f "$zcompdump_file" ]]; then
+    compinit -d "$zcompdump_file" || {
+      rm -f "$zcompdump_file"
+      compinit -d "$zcompdump_file"
+    }
+  else
     compinit -d "$zcompdump_file"
-  }
-else
-  compinit -d "$zcompdump_file"
-fi
+  fi
 
-setopt COMPLETE_IN_WORD
-setopt MENU_COMPLETE
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+  setopt COMPLETE_IN_WORD
+  setopt MENU_COMPLETE
+  zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+fi
 
 bindkey -e
 bindkey '^[[A' history-search-backward
@@ -172,7 +177,7 @@ dotfiles-shell-diagnostics() {
   print "tmux=$(command -v tmux 2>/dev/null || print '<missing>')"
 }
 
-if [[ -z "$DOTFILES_SHELL_CHECKED" && "$DOTFILES_SHELL_EFFECTIVE_MODE" == full ]]; then
+if [[ -z "${DOTFILES_SHELL_CHECKED:-}" && "$DOTFILES_SHELL_EFFECTIVE_MODE" == full ]]; then
   missing=()
   for tool in git nvim tmux jq; do
     command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
