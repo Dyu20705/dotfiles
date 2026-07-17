@@ -18,7 +18,9 @@ is_positive_integer() {
 }
 
 notify_tmux() {
-  command -v tmux >/dev/null 2>&1 && tmux display-message "$1" 2>/dev/null || true
+  if command -v tmux >/dev/null 2>&1; then
+    tmux display-message "$1" 2>/dev/null || true
+  fi
 }
 
 write_state() {
