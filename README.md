@@ -5,99 +5,157 @@
 [![Editor](https://img.shields.io/badge/editor-Neovim-57a143?style=flat-square)](https://github.com/Dyu20705/dotfiles)
 [![Terminal](https://img.shields.io/badge/terminal-WezTerm%20%2B%20tmux-0f172a?style=flat-square)](https://github.com/Dyu20705/dotfiles)
 
-Terminal-first dotfiles for developers who spend most of the day in a shell, tmux, and Neovim. The setup favors predictable startup, low-noise defaults, and a workflow that stays fast on Linux and macOS.
+Terminal-first dotfiles built around a predictable WezTerm → tmux → shell →
+Neovim workflow. Native configuration formats stay native; Bash and `jq` provide
+installation, diagnostics, state management and smoke tests.
 
-## Overview
+## Design principles
 
-This repository configures a small, coherent stack rather than a pile of unrelated tools. WezTerm is the entrypoint, tmux owns sessions and panes, the shell stays mode-aware, and Neovim handles editing, review, tests, and debugging.
+- tmux is a local session layer, not a signal to disable shell features.
+- Optional tools degrade quietly when unavailable.
+- Cache, state and personal identity stay outside the repository.
+- One canonical config exists per application.
+- Runtime smoke tests complement syntax linting.
+- Machine-specific changes belong in local files or environment variables.
 
-It is a good fit if you want:
+## Stack
 
-- a tmux-first terminal workflow
-- a Neovim setup that favors lazy loading and explicit keymaps
-- deterministic Git defaults with both CLI and TUI review paths
-- light Docker workflow support through LazyDocker
-
-## Stack Overview
-
-| Layer | Role | Primary files |
+| Layer | Role | Canonical config |
 | --- | --- | --- |
-| Terminal | WezTerm entrypoint, background/media helpers | [wezterm/.wezterm.lua](wezterm/.wezterm.lua) |
-| Session layer | Pane, window, and session orchestration | [tmux/tmux.conf](tmux/tmux.conf) |
-| Shell | Mode-aware Zsh and Bash startup | [zsh/.zshrc](zsh/.zshrc), [bash/.bashrc](bash/.bashrc) |
-| Editor | Neovim with lazy-loaded plugin modules | [nvim/.config/nvim/init.lua](nvim/.config/nvim/init.lua) |
-| Git | Deterministic Git defaults and review helpers | [git/.gitconfig](git/.gitconfig), [lazygit/config.yml](lazygit/config.yml) |
-| Containers | LazyDocker via Compose | [docker-compose.yaml](docker-compose.yaml) |
+| Terminal | WezTerm entrypoint and optional aesthetics | `wezterm/.wezterm.lua` |
+| Sessions | panes, windows, clipboard and explicit persistence | `tmux/tmux.conf` |
+| Shell | local/remote-aware Bash and Zsh startup | `bash/`, `zsh/.zshrc` |
+| Editor | Neovim 0.11.3+ with lazy-loaded plugins | `nvim/.config/nvim/` |
+| Git | portable defaults plus local identity | `git/.gitconfig` |
+| TUI | LazyGit with a portable opener | `lazygit/config.yml` |
+| Containers | optional pinned LazyDocker helper | `docker-compose.yaml` |
 
-## Core Workflow
-
-1. Open WezTerm. It starts tmux automatically when tmux is available.
-2. Attach or create a session with tmux's session chooser.
-3. Split panes for editor, logs, tests, and shell commands.
-4. Open Neovim for edits, search, Git review, and test runs.
-5. Use Git or LazyGit for staging and commits, then validate before push.
-
-## Repository Structure
-
-```text
-.
-├── bash/
-├── docker-compose.yaml
-├── git/
-├── lazygit/
-├── nvim/
-├── tmux/
-├── wezterm/
-└── zsh/
-```
+The supported commands, minimum versions, profiles and symlinks are declared in
+`config/workflow.json`.
 
 ## Installation
 
-The repo does not ship a bootstrap script. Clone it somewhere stable, then symlink the configs you want to use.
+`jq` is required by the manifest-driven tooling.
 
 ```bash
-git clone https://github.com/Dyu20705/dotfiles.git ~/dotfiles
+git clone https://github.com/Dyu20705/dotfiles.git ~/src/dotfiles
+cd ~/src/dotfiles
 
-ln -sf ~/dotfiles/zsh/.zshrc ~/.zshrc
-ln -sf ~/dotfiles/bash/.bashrc ~/.bashrc
-ln -sf ~/dotfiles/bash/.bash_profile ~/.bash_profile
-ln -sf ~/dotfiles/bash/.bash_env ~/.bash_env
-ln -sf ~/dotfiles/bash/.bash_aliases ~/.bash_aliases
-ln -sf ~/dotfiles/tmux/tmux.conf ~/.tmux.conf
-ln -sf ~/dotfiles/wezterm/.wezterm.lua ~/.wezterm.lua
-ln -sf ~/dotfiles/git/.gitconfig ~/.gitconfig
-mkdir -p ~/.config/lazygit ~/.config/nvim
-ln -sf ~/dotfiles/lazygit/config.yml ~/.config/lazygit/config.yml
-ln -sf ~/dotfiles/nvim/.config/nvim ~/.config/nvim
+bash scripts/bootstrap.sh --profile normal --dry-run
+bash scripts/bootstrap.sh --profile normal
 ```
 
-If you use Bash from a different checkout path, set `DOTFILES_ROOT` so the Bash wrappers can find the repo.
+Profiles:
 
-## Tooling Highlights
+- `minimal`: Bash and Git baseline.
+- `normal`: daily Zsh, tmux, Neovim and Git workflow.
+- `full`: normal profile plus WezTerm and LazyGit.
 
-| Area | Highlights |
-| --- | --- |
-| tmux | `Ctrl+A` prefix, session chooser, cached status, save/restore bindings, nested prefix forwarding |
-| Neovim | `Telescope`, `Gitsigns`, `Neogit`, `Diffview`, `Flash`, `Neotest`, `DAP`, `ToggleTerm`, `render-markdown` |
-| Git | `histogram` diff, `zdiff3` merges, deterministic pager/editor defaults, simple aliases |
-| Shell | Remote-aware shell mode, idempotent PATH handling, small alias set, optional prompt tooling |
-| WezTerm | tmux-first startup, optional background/media behavior, tmux prefix forwarding keys |
-| Docker | `docker-compose.yaml` service for LazyDocker with the Docker socket mounted |
+Existing deployment targets are moved to
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/backups` before a new symlink is
+created.
+
+Create machine-local Git identity after bootstrapping:
+
+```bash
+cp git/.gitconfig.local.example ~/.gitconfig.local
+$EDITOR ~/.gitconfig.local
+```
+
+## Diagnostics and tests
+
+```bash
+bash scripts/doctor.sh --profile normal
+bash scripts/doctor.sh --profile normal --json | jq
+
+bash scripts/test.sh --profile static
+bash scripts/test.sh --profile runtime
+bash scripts/test.sh --profile full
+```
+
+Runtime tests use isolated temporary homes and a dedicated tmux socket. Missing
+optional GUI applications are reported as skipped rather than silently assumed
+to work.
+
+## Runtime modes
+
+### Shell
+
+`DOTFILES_SHELL_MODE` accepts `minimal`, `normal` or `full`. SSH and CI sessions
+fall back to minimal mode unless full mode is explicitly requested. A shell
+inside tmux remains normal because tmux is the primary local workflow.
+
+### WezTerm
+
+`DOTFILES_WEZTERM_MODE` accepts:
+
+- `minimal`: terminal and tmux only.
+- `normal`: safe default with no media or background integrations.
+- `aesthetic`: opt-in local backgrounds and music controls.
+
+Aesthetic mode requires `DOTFILES_ROOT` so local assets can be found. Optional
+asset paths can be overridden with `DOTFILES_WEZTERM_BG_DIR`,
+`DOTFILES_WEZTERM_MUSIC_DIR` and `DOTFILES_WEZTERM_BG`.
+
+## Core keymaps
+
+### tmux
+
+- Prefix: `Ctrl+A`
+- Split horizontal: `Prefix+\\`
+- Split vertical: `Prefix+-`
+- Session chooser: `Prefix+s`
+- Clipboard paste: `Prefix+p` or `Shift+Insert`
+- Reload: `Prefix+r`
+- Diagnostics: `Prefix+D`
+
+`Ctrl+V` is intentionally left to Neovim and other applications.
+
+### Neovim namespaces
+
+- `<leader>f`: find/Telescope
+- `<leader>g`: Git
+- `<leader>t`: tests
+- `<leader>o`: terminal/open tools
+- `<leader>d`: debugger
+- `<leader>x`: diagnostics and lint
+
+## tmux state and status
+
+- Cached UI data: `${XDG_CACHE_HOME:-~/.cache}/dotfiles/tmux`
+- Session metadata: `${XDG_STATE_HOME:-~/.local/state}/dotfiles/tmux/sessions`
+
+Session metadata is written atomically as JSON through `jq`:
+
+```bash
+bash tmux/session-manager.sh create project "$PWD" "Current project"
+bash tmux/session-manager.sh list
+bash tmux/session-manager.sh restore
+```
+
+Weather and random-note status collectors are disabled by default. Enable them
+explicitly with `DOTFILES_STATUS_WEATHER=1` or
+`DOTFILES_STATUS_RANDOM_NOTE=1`.
+
+## LazyDocker helper
+
+```bash
+docker compose run --rm lazydocker
+```
+
+The image defaults to `v0.25.2`; override it with `LAZYDOCKER_VERSION` after
+reviewing the release. Mounting `/var/run/docker.sock` gives the container
+powerful control over the host Docker daemon. Only run trusted images.
+
+## Documentation
+
+- [Dependencies](docs/DEPENDENCIES.md)
+- [Testing](docs/TESTING.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## Contributing
 
-- Keep changes tied to actual config and commands.
-- Prefer small, atomic commits.
-- Run `git diff --check` before pushing.
-- Keep local docs, benchmarks, and generated assets out of commits unless they are intentionally part of the repo.
-
-## Validation
-
-Useful local checks:
-
-```bash
-git status
-git diff --check
-```
-
-CI runs markdown, shell, YAML, and Lua validation so changes stay reproducible.
+- Keep changes tied to a real workflow problem.
+- Prefer small native configs and explicit shell helpers.
+- Update `config/workflow.json` when requirements or deployment paths change.
+- Run `bash scripts/test.sh --profile full` before opening a pull request.
