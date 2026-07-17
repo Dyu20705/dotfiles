@@ -176,9 +176,23 @@ check_keymap_contract() {
 bash_runtime() {
   local tmp_home
   tmp_home=$(mktemp -d)
-  HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
+
+  CI= SSH_CONNECTION= SSH_TTY= TMUX= \
+    HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
     bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
-    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; dotfiles-shell-diagnostics >/dev/null; exit'
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
+    || return 1
+
+  CI= SSH_CONNECTION= SSH_TTY= TMUX=/tmp/dotfiles-test,1,0 \
+    HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
+    bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
+    || return 1
+
+  CI=true SSH_CONNECTION= SSH_TTY= TMUX= \
+    HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
+    bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
 }
 
 zsh_runtime() {
@@ -189,8 +203,20 @@ zsh_runtime() {
 
   local tmp_home
   tmp_home=$(mktemp -d)
-  HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
-    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
+
+  CI= SSH_CONNECTION= SSH_TTY= TMUX= \
+    HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
+    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
+    || return 1
+
+  CI= SSH_CONNECTION= SSH_TTY= TMUX=/tmp/dotfiles-test,1,0 \
+    HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
+    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
+    || return 1
+
+  CI=true SSH_CONNECTION= SSH_TTY= TMUX= \
+    HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
+    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
 }
 
 tmux_runtime() {
@@ -204,6 +230,7 @@ tmux_runtime() {
     trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true' EXIT
     tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" new-session -d -s smoke -c /tmp || exit 1
     [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] || exit 1
+    [ "$(tmux -L "$socket" show-options -gqv @tmux_root 2>/dev/null)" = "$DOTFILES_ROOT/tmux" ] || exit 1
     tmux -L "$socket" list-keys >/dev/null || exit 1
     tmux -L "$socket" source-file "$DOTFILES_ROOT/tmux/tmux.conf" || exit 1
   )
@@ -260,8 +287,8 @@ run_static() {
 }
 
 run_runtime() {
-  run_check "Bash isolated startup" bash_runtime
-  run_check "Zsh isolated startup" zsh_runtime
+  run_check "Bash isolated startup and mode detection" bash_runtime
+  run_check "Zsh isolated startup and mode detection" zsh_runtime
   run_check "tmux isolated startup/reload" tmux_runtime
   run_check "Neovim headless startup" nvim_runtime
   run_check "WezTerm config load" wezterm_runtime
