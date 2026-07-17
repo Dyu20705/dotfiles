@@ -35,6 +35,10 @@ metadata_path() {
   printf '%s/%s.json\n' "$SESSIONS_DIR" "$1"
 }
 
+metadata_files() {
+  find "$SESSIONS_DIR" -maxdepth 1 -type f -name '*.json' -print 2>/dev/null | sort
+}
+
 create_session() {
   local name=$1
   local directory=$2
@@ -73,17 +77,19 @@ list_sessions() {
 
   printf '\nSaved session metadata:\n'
   local found=0 file
-  while IFS= read -r -d '' file; do
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
     found=1
     jq -r '"  \(.name) | \(.directory) | \(.description // "")"' "$file" \
       || printf '  invalid metadata: %s\n' "$file" >&2
-  done < <(find "$SESSIONS_DIR" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
+  done < <(metadata_files)
   [ "$found" -eq 1 ] || printf '  <none>\n'
 }
 
 restore_sessions() {
   local file name directory
-  while IFS= read -r -d '' file; do
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
     if ! jq -e '.schema_version == 1 and (.name | type == "string") and (.directory | type == "string")' "$file" >/dev/null; then
       printf 'Skipping invalid metadata: %s\n' "$file" >&2
       continue
@@ -102,7 +108,7 @@ restore_sessions() {
       tmux new-session -d -s "$name" -c "$directory"
       printf 'Restored session: %s\n' "$name"
     fi
-  done < <(find "$SESSIONS_DIR" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
+  done < <(metadata_files)
 }
 
 delete_session() {
