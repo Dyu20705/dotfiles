@@ -67,18 +67,18 @@ while IFS=$'\034' read -r name command_name minimum required; do
   if [ -n "$path" ]; then
     version=$(first_version "$command_name")
     detected_version=$(printf '%s\n' "$version" | grep -Eo '[0-9]+([.][0-9]+){1,3}' | head -n 1 || true)
-    status=ok
+    status='ok'
     if [ -n "$minimum" ]; then
       if [ -z "$detected_version" ]; then
-        status=version-unknown
+        status='version-unknown'
       elif ! version_ge "$detected_version" "$minimum"; then
-        status=outdated
+        status='outdated'
       fi
     fi
   elif [ "$required" = true ]; then
-    status=missing
+    status='missing'
   else
-    status=optional-missing
+    status='optional-missing'
   fi
 
   jq -cn \
@@ -118,20 +118,20 @@ done < <(
 while IFS=$'\t' read -r source_rel target_raw; do
   source="$DOTFILES_ROOT/$source_rel"
   target=$(expand_home "$target_raw")
-  status=missing
+  status='missing'
   resolved=""
 
   if [ ! -e "$source" ]; then
-    status=source-missing
+    status='source-missing'
   elif [ -L "$target" ]; then
     resolved=$(readlink "$target" 2>/dev/null || true)
     if [ "$resolved" = "$source" ]; then
-      status=ok
+      status='ok'
     else
-      status=wrong-target
+      status='wrong-target'
     fi
   elif [ -e "$target" ]; then
-    status=not-symlink
+    status='not-symlink'
   fi
 
   jq -cn \
