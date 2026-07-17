@@ -123,12 +123,32 @@ check_lua_syntax() {
 }
 
 check_json() {
-  has_cmd jq || return 1
-  jq -e '
-    .schema_version == 1
-    and (.profiles | type == "object")
-    and (.links | type == "array")
-  ' "$DOTFILES_ROOT/config/workflow.json" >/dev/null
+  validate_manifest
+}
+
+check_manifest_rejects_unsafe_target() {
+  local tmp_home tmp_manifest outside
+  tmp_home=$(mktemp -d)
+  tmp_manifest=$(mktemp)
+  outside="${TMPDIR:-/tmp}/dotfiles-unsafe-target-$$"
+
+  jq --arg target "$outside" '.links[0].target = $target' \
+    "$DOTFILES_ROOT/config/workflow.json" > "$tmp_manifest" || {
+      rm -rf "$tmp_home" "$tmp_manifest"
+      return 1
+    }
+
+  if HOME="$tmp_home" DOTFILES_MANIFEST="$tmp_manifest" \
+    bash "$DOTFILES_ROOT/scripts/bootstrap.sh" --profile normal --dry-run \
+    >/dev/null 2>&1; then
+    rm -rf "$tmp_home" "$tmp_manifest" "$outside"
+    return 1
+  fi
+
+  [ ! -e "$outside" ] && [ ! -L "$outside" ]
+  result=$?
+  rm -rf "$tmp_home" "$tmp_manifest" "$outside"
+  return "$result"
 }
 
 check_doctor_json() {
@@ -152,6 +172,56 @@ check_doctor_json() {
     and ([.checks[] | select(.type == "command")] | length == $app_count)
     and (.summary.failures | type == "number")
   ' >/dev/null
+}
+
+check_doctor_deployment_contract() {
+  local tmp_home tmp_bin output target
+  tmp_home=$(mktemp -d)
+  tmp_bin=$(mktemp -d)
+  target="$tmp_home/.gitconfig"
+
+  HOME="$tmp_home" \
+    XDG_CONFIG_HOME="$tmp_home/.config" \
+    XDG_CACHE_HOME="$tmp_home/.cache" \
+    XDG_STATE_HOME="$tmp_home/.local/state" \
+    XDG_DATA_HOME="$tmp_home/.local/share" \
+    bash "$DOTFILES_ROOT/scripts/bootstrap.sh" --profile minimal >/dev/null || {
+      rm -rf "$tmp_home" "$tmp_bin"
+      return 1
+    }
+
+  rm -f "$target"
+  printf '[user]\n' > "$target"
+
+  cat > "$tmp_bin/git" <<'EOF'
+#!/usr/bin/env bash
+printf 'git version unknown\n'
+EOF
+  chmod +x "$tmp_bin/git"
+
+  output=$(
+    PATH="$tmp_bin:$PATH" \
+      HOME="$tmp_home" \
+      XDG_CONFIG_HOME="$tmp_home/.config" \
+      XDG_CACHE_HOME="$tmp_home/.cache" \
+      XDG_STATE_HOME="$tmp_home/.local/state" \
+      XDG_DATA_HOME="$tmp_home/.local/share" \
+      bash "$DOTFILES_ROOT/scripts/doctor.sh" --profile minimal --json \
+      2>/dev/null || true
+  )
+
+  printf '%s\n' "$output" | jq -e --arg target "$target" '
+    any(.checks[];
+      .type == "link" and .target == $target and .status == "not-symlink"
+    )
+    and any(.checks[];
+      .type == "command" and .command == "git" and .status == "version-unknown"
+    )
+    and .summary.failures >= 2
+  ' >/dev/null
+  result=$?
+  rm -rf "$tmp_home" "$tmp_bin"
+  return "$result"
 }
 
 check_bootstrap_dry_run() {
@@ -279,6 +349,58 @@ check_keymap_contract() {
     "$DOTFILES_ROOT/nvim/.config/nvim/lazy-lock.json" >/dev/null
 }
 
+check_git_tool_contract() {
+  local config="$DOTFILES_ROOT/git/.gitconfig"
+  [ "$(git config --file "$config" --get merge.tool)" = nvimdiff ] || return 1
+  [ "$(git config --file "$config" --get diff.tool)" = nvimdiff ] || return 1
+  [ "$(git config --file "$config" --get mergetool.nvimdiff.layout)" = LOCAL,MERGED,REMOTE ] || return 1
+  [ "$(git config --file "$config" --get mergetool.keepBackup)" = false ] || return 1
+  ! git config --file "$config" --get mergetool.nvimdiff.cmd >/dev/null 2>&1 || return 1
+  ! git config --file "$config" --get mergetool.nvimdiff.trustExitCode >/dev/null 2>&1
+}
+
+check_clipboard_pipeline() {
+  local tmp capture expected marker
+  tmp=$(mktemp -d)
+  capture="$tmp/capture"
+  expected="$tmp/expected"
+  marker="$tmp/pasted"
+  mkdir -p "$tmp/bin"
+
+  cat > "$tmp/bin/wl-paste" <<'EOF'
+#!/usr/bin/env bash
+printf 'first line\nsecond line\n'
+EOF
+  cat > "$tmp/bin/tmux" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  load-buffer)
+    [ "${2:-}" = - ] || exit 2
+    cat > "$DOTFILES_CLIPBOARD_CAPTURE"
+    ;;
+  paste-buffer)
+    : > "$DOTFILES_CLIPBOARD_PASTED"
+    ;;
+  *) exit 2 ;;
+esac
+EOF
+  chmod +x "$tmp/bin/wl-paste" "$tmp/bin/tmux"
+  printf 'first line\nsecond line\n' > "$expected"
+
+  PATH="$tmp/bin:/usr/bin:/bin" \
+    DOTFILES_CLIPBOARD_CAPTURE="$capture" \
+    DOTFILES_CLIPBOARD_PASTED="$marker" \
+    bash "$DOTFILES_ROOT/tmux/clipboard-paste.sh" || {
+      rm -rf "$tmp"
+      return 1
+    }
+
+  cmp -s "$expected" "$capture" && [ -f "$marker" ]
+  result=$?
+  rm -rf "$tmp"
+  return "$result"
+}
+
 bash_runtime() {
   local tmp_home root bashrc
   tmp_home=$(mktemp -d)
@@ -289,18 +411,27 @@ bash_runtime() {
     HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
     bash --noprofile --rcfile "$bashrc" -ic \
     'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
-    || return 1
+    || { rm -rf "$tmp_home"; return 1; }
 
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
     HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
     bash --noprofile --rcfile "$bashrc" -ic \
     'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
-    || return 1
+    || { rm -rf "$tmp_home"; return 1; }
 
   env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
     bash --noprofile --rcfile "$bashrc" -ic \
-    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit' \
+    || { rm -rf "$tmp_home"; return 1; }
+
+  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
+    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=invalid \
+    bash --noprofile --rcfile "$bashrc" -ic \
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
+  result=$?
+  rm -rf "$tmp_home"
+  return "$result"
 }
 
 zsh_runtime() {
@@ -317,18 +448,27 @@ zsh_runtime() {
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
     zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
-    || return 1
+    || { rm -rf "$tmp_home"; return 1; }
 
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
     zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
-    || return 1
+    || { rm -rf "$tmp_home"; return 1; }
 
   env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
+    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit' \
+    || { rm -rf "$tmp_home"; return 1; }
+
+  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
+    HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=invalid \
+    DOTFILES_SKIP_COMPLETION=1 \
+    zsh -d -ic 'test "$DOTFILES_SHELL_MODE" = normal; test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
+  result=$?
+  rm -rf "$tmp_home"
+  return "$result"
 }
 
 tmux_runtime() {
@@ -337,17 +477,24 @@ tmux_runtime() {
     return 0
   fi
 
-  local socket="dotfiles-test-$$"
+  local socket="dotfiles-test-$$" tmp_home
+  tmp_home=$(mktemp -d)
+  printf 'set -g status-left "local-overlay"\n' > "$tmp_home/.tmux.conf.local"
+
   (
-    trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true' EXIT
-    tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" \
+    trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true; rm -rf "$tmp_home"' EXIT
+    HOME="$tmp_home" tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" \
       new-session -d -s smoke -c /tmp || exit 1
     [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] \
       || exit 1
     [ "$(tmux -L "$socket" show-options -gqv @tmux_root 2>/dev/null)" \
       = "$DOTFILES_ROOT/tmux" ] || exit 1
+    [ "$(tmux -L "$socket" show-options -gv status-left 2>/dev/null)" \
+      = local-overlay ] || exit 1
     tmux -L "$socket" list-keys >/dev/null || exit 1
     tmux -L "$socket" source-file "$DOTFILES_ROOT/tmux/tmux.conf" || exit 1
+    [ "$(tmux -L "$socket" show-options -gv status-left 2>/dev/null)" \
+      = local-overlay ] || exit 1
   )
 }
 
@@ -370,7 +517,12 @@ nvim_runtime() {
     XDG_STATE_HOME="$tmp/state" \
     XDG_CACHE_HOME="$tmp/cache" \
     DOTFILES_NVIM_BOOTSTRAP=0 \
-    nvim --headless -u "$DOTFILES_ROOT/nvim/.config/nvim/init.lua" '+qa'
+    nvim --headless -u "$DOTFILES_ROOT/nvim/.config/nvim/init.lua" \
+    '+lua assert(vim.g.dotfiles_core_ready == true, "dotfiles core did not load"); assert(vim.g.dotfiles_init_error == nil, vim.g.dotfiles_init_error)' \
+    '+qa'
+  result=$?
+  rm -rf "$tmp"
+  return "$result"
 }
 
 wezterm_runtime() {
@@ -389,8 +541,12 @@ git_runtime() {
   tmp_home=$(mktemp -d)
   tmp_repo=$(mktemp -d)
   HOME="$tmp_home" git config --file "$DOTFILES_ROOT/git/.gitconfig" \
-    --list >/dev/null || return 1
-  HOME="$tmp_home" git -C "$tmp_repo" init -q || return 1
+    --list >/dev/null || { rm -rf "$tmp_home" "$tmp_repo"; return 1; }
+  HOME="$tmp_home" git -C "$tmp_repo" init -q || {
+    rm -rf "$tmp_home" "$tmp_repo"
+    return 1
+  }
+  rm -rf "$tmp_home" "$tmp_repo"
 }
 
 run_static() {
@@ -399,21 +555,25 @@ run_static() {
   run_check "ShellCheck" check_shellcheck
   run_check "Zsh syntax" check_zsh_syntax
   run_check "Lua syntax" check_lua_syntax
-  run_check "JSON manifest" check_json
+  run_check "JSON manifest contract" check_json
+  run_check "Manifest rejects unsafe targets" check_manifest_rejects_unsafe_target
   run_check "Doctor JSON report" check_doctor_json
+  run_check "Doctor deployment failures" check_doctor_deployment_contract
   run_check "Bootstrap dry-run is read-only" check_bootstrap_dry_run
   run_check "Bootstrap preserves checkout" check_bootstrap_preserves_checkout
   run_check "YAML lint" check_yaml
   run_check "Docker Compose config" check_compose
   run_check "No personal hard-coded paths" check_hardcoded_paths
   run_check "Critical keymap contract" check_keymap_contract
+  run_check "Git merge tool contract" check_git_tool_contract
+  run_check "Clipboard streaming contract" check_clipboard_pipeline
 }
 
 run_runtime() {
   run_check "Bash isolated startup and mode detection" bash_runtime
   run_check "Zsh isolated startup and mode detection" zsh_runtime
-  run_check "tmux isolated startup/reload" tmux_runtime
-  run_check "Neovim headless startup" nvim_runtime
+  run_check "tmux isolated startup/reload and local overlay" tmux_runtime
+  run_check "Neovim headless core startup" nvim_runtime
   run_check "WezTerm config load" wezterm_runtime
   run_check "Git isolated config" git_runtime
 }
