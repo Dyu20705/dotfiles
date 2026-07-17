@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# The single-quoted command snippets below are intentionally expanded by the
+# child Bash/Zsh process, not by this test harness.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -150,7 +153,6 @@ check_compose() {
 check_hardcoded_paths() {
   local matches
   # The expression intentionally matches the literal text `$HOME`.
-  # shellcheck disable=SC2016
   matches=$(git -C "$DOTFILES_ROOT" grep -nE \
     '(\$HOME/dotfiles|~/dotfiles|/home/[^/]+/|Documents/git)' -- \
     ':!README.md' ':!docs/**' ':!scripts/test.sh' 2>/dev/null || true)
@@ -223,19 +225,19 @@ zsh_runtime() {
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
+    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
     || return 1
 
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
+    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
     || return 1
 
   env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
+    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
 }
 
 tmux_runtime() {
