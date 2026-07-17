@@ -18,9 +18,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          show-progress: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - run: npm install --global markdownlint-cli2
       - run: markdownlint-cli2 README.md "docs/**/*.md"
 
@@ -30,12 +33,26 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          show-progress: false
       - name: Install validation tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq zsh shellcheck lua5.4 yamllint tmux
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq zsh shellcheck lua5.4 yamllint tmux
       - name: Run static checks
-        run: bash scripts/test.sh --profile static
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/test.sh --profile static 2>&1 | tee "$RUNNER_TEMP/static.log"
+      - name: Upload static validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-validation-log
+          path: ${{ runner.temp }}/static.log
+          if-no-files-found: warn
+          retention-days: 7
 
   runtime:
     name: Runtime smoke (${{ matrix.os }})
@@ -49,13 +66,27 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          show-progress: false
       - name: Install runtime tools on Ubuntu
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq zsh tmux neovim
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq zsh tmux neovim
       - name: Install runtime tools on macOS
         if: runner.os == 'macOS'
-        run: brew install jq tmux neovim
+        run: brew install jq tmux neovim >/dev/null
       - name: Run runtime smoke tests
-        run: bash scripts/test.sh --profile runtime
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/test.sh --profile runtime 2>&1 | tee "$RUNNER_TEMP/runtime-${RUNNER_OS}.log"
+      - name: Upload runtime validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-validation-${{ runner.os }}
+          path: ${{ runner.temp }}/runtime-${{ runner.os }}.log
+          if-no-files-found: warn
+          retention-days: 7
