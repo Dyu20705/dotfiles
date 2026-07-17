@@ -68,19 +68,75 @@ portable_timeout() {
   fi
 }
 
+validate_manifest() {
+  require_cmd jq
+  [ -r "$DOTFILES_MANIFEST" ] || {
+    warn "manifest not found: $DOTFILES_MANIFEST"
+    return 1
+  }
+
+  jq -e '
+    . as $root
+    | ($root.schema_version == 1)
+      and ($root.root_env | type == "string" and length > 0)
+      and ($root.profiles | type == "object" and length > 0)
+      and all($root.profiles[];
+        type == "object"
+        and (.description | type == "string" and length > 0)
+      )
+      and ($root.apps | type == "array" and length > 0)
+      and all($root.apps[];
+        (.name | type == "string" and length > 0)
+        and (.command | type == "string" and length > 0)
+        and (
+          .minimum == null
+          or (.minimum | type == "string" and test("^[0-9]+([.][0-9]+){1,3}$"))
+        )
+        and (.required_in | type == "array")
+        and all(.required_in[]; . as $profile | $root.profiles[$profile] != null)
+      )
+      and (($root.apps | map(.name) | unique | length) == ($root.apps | length))
+      and (($root.apps | map(.command) | unique | length) == ($root.apps | length))
+      and ($root.links | type == "array" and length > 0)
+      and all($root.links[];
+        (.source
+          | type == "string"
+          and length > 0
+          and (startswith("/") | not)
+          and (test("(^|/)\\.\\.(/|$)") | not)
+        )
+        and (.target
+          | type == "string"
+          and startswith("~/")
+          and length > 2
+          and (test("(^|/)\\.\\.(/|$)") | not)
+        )
+        and (.profiles | type == "array" and length > 0)
+        and all(.profiles[]; . as $profile | $root.profiles[$profile] != null)
+      )
+      and (($root.links | map(.target) | unique | length) == ($root.links | length))
+  ' "$DOTFILES_MANIFEST" >/dev/null
+}
+
 backup_path() {
   local target=$1
-  local state_home backup_root relative timestamp
+  local state_home backup_root relative destination timestamp
 
   [ -e "$target" ] || [ -L "$target" ] || return 0
 
   state_home=$(xdg_state_home)
   timestamp=$(date +%Y%m%d-%H%M%S)
   relative=${target#"$HOME"/}
-  backup_root="$state_home/dotfiles/backups/$timestamp"
-  mkdir -p "$backup_root/$(dirname "$relative")"
-  mv "$target" "$backup_root/$relative"
-  info "backed up $target -> $backup_root/$relative"
+  backup_root=${DOTFILES_BACKUP_ROOT:-"$state_home/dotfiles/backups/$timestamp-$$"}
+  destination="$backup_root/$relative"
+
+  if [ -e "$destination" ] || [ -L "$destination" ]; then
+    destination="$destination.backup-$timestamp-$$"
+  fi
+
+  mkdir -p "$(dirname "$destination")"
+  mv "$target" "$destination"
+  info "backed up $target -> $destination"
 }
 
 link_path() {
@@ -88,6 +144,14 @@ link_path() {
   local target=$2
   local dry_run=${3:-0}
   local current
+
+  case "$target" in
+    "$HOME"/*) ;;
+    *)
+      warn "refusing to manage a target outside HOME: $target"
+      return 1
+      ;;
+  esac
 
   if [ -L "$target" ]; then
     current=$(readlink "$target" 2>/dev/null || true)
