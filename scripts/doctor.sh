@@ -53,6 +53,7 @@ while [ $# -gt 0 ]; do
 done
 
 require_cmd jq
+validate_manifest || die "manifest validation failed: $DOTFILES_MANIFEST"
 validate_profile "$PROFILE"
 
 TMP_RESULTS=$(mktemp)
@@ -67,8 +68,12 @@ while IFS=$'\034' read -r name command_name minimum required; do
     version=$(first_version "$command_name")
     detected_version=$(printf '%s\n' "$version" | grep -Eo '[0-9]+([.][0-9]+){1,3}' | head -n 1 || true)
     status=ok
-    if [ -n "$minimum" ] && [ -n "$detected_version" ] && ! version_ge "$detected_version" "$minimum"; then
-      status=outdated
+    if [ -n "$minimum" ]; then
+      if [ -z "$detected_version" ]; then
+        status=version-unknown
+      elif ! version_ge "$detected_version" "$minimum"; then
+        status=outdated
+      fi
     fi
   elif [ "$required" = true ]; then
     status=missing
@@ -116,7 +121,9 @@ while IFS=$'\t' read -r source_rel target_raw; do
   status=missing
   resolved=""
 
-  if [ -L "$target" ]; then
+  if [ ! -e "$source" ]; then
+    status=source-missing
+  elif [ -L "$target" ]; then
     resolved=$(readlink "$target" 2>/dev/null || true)
     if [ "$resolved" = "$source" ]; then
       status=ok
@@ -152,8 +159,18 @@ REPORT=$(jq -s --arg profile "$PROFILE" --arg root "$DOTFILES_ROOT" '
     checks: .,
     summary: {
       ok: map(select(.status == "ok")) | length,
-      warnings: map(select(.status == "optional-missing" or .status == "not-symlink")) | length,
-      failures: map(select(.status == "missing" or .status == "wrong-target" or .status == "outdated")) | length
+      warnings: map(select(
+        .status == "optional-missing"
+        or (.status == "version-unknown" and .required == false)
+      )) | length,
+      failures: map(select(
+        .status == "missing"
+        or .status == "wrong-target"
+        or .status == "not-symlink"
+        or .status == "outdated"
+        or .status == "source-missing"
+        or (.status == "version-unknown" and .required == true)
+      )) | length
     }
   }
 ' "$TMP_RESULTS")
