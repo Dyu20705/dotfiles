@@ -19,6 +19,11 @@ typeset -g DOTFILES_ROOT="${DOTFILES_ROOT:-${${(%):-%N}:A:h:h}}"
 export DOTFILES_ROOT
 
 DOTFILES_SHELL_MODE=${DOTFILES_SHELL_MODE:-normal}
+case "$DOTFILES_SHELL_MODE" in
+  minimal|normal|full) ;;
+  *) DOTFILES_SHELL_MODE=normal ;;
+esac
+
 DOTFILES_SHELL_REMOTE=0
 DOTFILES_SHELL_IN_TMUX=0
 
@@ -31,7 +36,7 @@ if [[ -n "${TMUX:-}" ]]; then
 fi
 
 DOTFILES_SHELL_EFFECTIVE_MODE="$DOTFILES_SHELL_MODE"
-if [[ "$DOTFILES_SHELL_MODE" != minimal && "$DOTFILES_SHELL_MODE" != full && "$DOTFILES_SHELL_REMOTE" -eq 1 ]]; then
+if [[ "$DOTFILES_SHELL_MODE" == normal && "$DOTFILES_SHELL_REMOTE" -eq 1 ]]; then
   DOTFILES_SHELL_EFFECTIVE_MODE=minimal
 fi
 
