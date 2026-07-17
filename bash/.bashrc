@@ -22,6 +22,7 @@ fi
 export DOTFILES_ROOT
 
 if [ -r "$DOTFILES_ROOT/bash/.bash_env" ]; then
+  # shellcheck source=/dev/null
   . "$DOTFILES_ROOT/bash/.bash_env"
 fi
 
@@ -79,24 +80,30 @@ esac
 
 if [ "$DOTFILES_SHELL_EFFECTIVE_MODE" != minimal ]; then
   if [ -r "$HOME/.bash_aliases" ]; then
+    # shellcheck source=/dev/null
     . "$HOME/.bash_aliases"
   elif [ -r "$DOTFILES_ROOT/bash/.bash_aliases" ]; then
+    # shellcheck source=/dev/null
     . "$DOTFILES_ROOT/bash/.bash_aliases"
   fi
 
   if [ -r /usr/share/bash-completion/bash_completion ]; then
+    # shellcheck source=/dev/null
     . /usr/share/bash-completion/bash_completion
   elif [ -r /etc/bash_completion ]; then
+    # shellcheck source=/dev/null
     . /etc/bash_completion
   fi
 
   if [ -r "$HOME/.fzf.bash" ]; then
+    # shellcheck source=/dev/null
     . "$HOME/.fzf.bash"
   fi
 fi
 
 # Cargo is optional and must never make a fresh shell noisy.
 if [ "$DOTFILES_SHELL_EFFECTIVE_MODE" != minimal ] && [ -r "$HOME/.cargo/env" ]; then
+  # shellcheck source=/dev/null
   . "$HOME/.cargo/env"
 fi
 
