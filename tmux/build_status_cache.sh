@@ -10,12 +10,16 @@ trap 'rm -f "$TMPFILE"' EXIT
 RUN=${RUN:-0}
 
 collect_pomodoro() {
-  [ -x "$SCRIPT_DIR/pomodoro.sh" ] && "$SCRIPT_DIR/pomodoro.sh" || true
+  if [ -x "$SCRIPT_DIR/pomodoro.sh" ]; then
+    "$SCRIPT_DIR/pomodoro.sh" || true
+  fi
 }
 
 collect_random_note() {
   [ "${DOTFILES_STATUS_RANDOM_NOTE:-0}" = 1 ] || return 0
-  [ -x "$SCRIPT_DIR/random_note.sh" ] && "$SCRIPT_DIR/random_note.sh" || true
+  if [ -x "$SCRIPT_DIR/random_note.sh" ]; then
+    "$SCRIPT_DIR/random_note.sh" || true
+  fi
 }
 
 collect_memory_pressure() {
@@ -26,7 +30,8 @@ collect_memory_pressure() {
 
 collect_battery() {
   if command -v pmset >/dev/null 2>&1; then
-    pmset -g batt 2>/dev/null | awk -F';' 'NR==2 {gsub(/[^0-9%]/,"",$1); print $1}'
+    pmset -g batt 2>/dev/null \
+      | awk -F';' 'NR==2 {gsub(/[^0-9%]/,"",$1); print $1}'
     return
   fi
 
@@ -41,10 +46,11 @@ collect_cpu() {
   [ -r /proc/stat ] || return 0
 
   local prev_file="$CACHE_DIR/cpu-prev" now
-  local cpu user nice system idle iowait irq softirq steal guest guest_nice
+  local _cpu user nice system idle iowait irq softirq steal guest guest_nice
   local total idle_all prev_total prev_idle prev_time diff_total diff_idle
 
-  read -r cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat || return 0
+  read -r _cpu user nice system idle iowait irq softirq steal guest guest_nice \
+    < /proc/stat || return 0
   idle_all=$((idle + iowait))
   total=$((user + nice + system + idle + iowait + irq + softirq + steal + guest + guest_nice))
   now=$(date +%s)
@@ -73,7 +79,9 @@ collect_weather() {
   now=$(date +%s)
 
   if [ -r "$cache" ]; then
-    mtime=$(stat -c %Y "$cache" 2>/dev/null || stat -f %m "$cache" 2>/dev/null || printf 0)
+    mtime=$(stat -c %Y "$cache" 2>/dev/null \
+      || stat -f %m "$cache" 2>/dev/null \
+      || printf 0)
     age=$((now - mtime))
     if [ "$age" -lt "$ttl" ]; then
       cat "$cache"
@@ -104,7 +112,12 @@ collect_todo_count() {
 mkdir -p "$CACHE_DIR"
 
 components=()
-for collector in collect_pomodoro collect_random_note collect_memory_pressure collect_cpu; do
+for collector in \
+  collect_pomodoro \
+  collect_random_note \
+  collect_memory_pressure \
+  collect_cpu
+do
   value=$($collector 2>/dev/null | tr -d '\n')
   [ -n "$value" ] && components+=("$value")
 done
