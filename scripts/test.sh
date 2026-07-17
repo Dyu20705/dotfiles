@@ -115,13 +115,17 @@ check_lua_syntax() {
 
   while IFS= read -r -d '' file; do
     "$lua_parser" -p "$file" || return 1
-  done < <(find "$DOTFILES_ROOT/nvim" "$DOTFILES_ROOT/wezterm" -type f -name '*.lua' -print0)
+  done < <(find "$DOTFILES_ROOT/nvim" "$DOTFILES_ROOT/wezterm" \
+    -type f -name '*.lua' -print0)
 }
 
 check_json() {
   has_cmd jq || return 1
-  jq -e '.schema_version == 1 and (.profiles | type == "object") and (.links | type == "array")' \
-    "$DOTFILES_ROOT/config/workflow.json" >/dev/null
+  jq -e '
+    .schema_version == 1
+    and (.profiles | type == "object")
+    and (.links | type == "array")
+  ' "$DOTFILES_ROOT/config/workflow.json" >/dev/null
 }
 
 check_yaml() {
@@ -145,8 +149,11 @@ check_compose() {
 
 check_hardcoded_paths() {
   local matches
-  matches="$(git -C "$DOTFILES_ROOT" grep -nE '(\$HOME/dotfiles|~/dotfiles|/home/[^/]+/|Documents/git)' -- \
-    ':!README.md' ':!docs/**' ':!scripts/test.sh' 2>/dev/null || true)"
+  # The expression intentionally matches the literal text `$HOME`.
+  # shellcheck disable=SC2016
+  matches=$(git -C "$DOTFILES_ROOT" grep -nE \
+    '(\$HOME/dotfiles|~/dotfiles|/home/[^/]+/|Documents/git)' -- \
+    ':!README.md' ':!docs/**' ':!scripts/test.sh' 2>/dev/null || true)
   if [ -n "$matches" ]; then
     printf '%s\n' "$matches" >&2
     return 1
@@ -155,43 +162,51 @@ check_hardcoded_paths() {
 
 check_keymap_contract() {
   local test_file_count
-  test_file_count=$(grep -RhoE "['\"]<leader>tf['\"]" "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null | wc -l | tr -d ' ')
+  test_file_count=$(grep -RhoE "['\"]<leader>tf['\"]" \
+    "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null \
+    | wc -l | tr -d ' ')
   if [ "$test_file_count" -gt 1 ]; then
     printf '<leader>tf is declared %s times\n' "$test_file_count" >&2
     return 1
   fi
 
-  if grep -RqsE '^bind(-key)?[[:space:]]+-n[[:space:]]+C-v' "$DOTFILES_ROOT/tmux"; then
+  if grep -RqsE '^bind(-key)?[[:space:]]+-n[[:space:]]+C-v' \
+    "$DOTFILES_ROOT/tmux"
+  then
     printf 'tmux must not steal Ctrl+V from applications\n' >&2
     return 1
   fi
 
-  if grep -qE 'key[[:space:]]*=[[:space:]]*"F(5|6|7|8|9|10|11|12)"[^\n]*mods[[:space:]]*=[[:space:]]*""' \
-    "$DOTFILES_ROOT/wezterm/.wezterm.lua"; then
+  if grep -qE \
+    'key[[:space:]]*=[[:space:]]*"F(5|6|7|8|9|10|11|12)"[^\n]*mods[[:space:]]*=[[:space:]]*""' \
+    "$DOTFILES_ROOT/wezterm/.wezterm.lua"
+  then
     printf 'WezTerm contains an unmodified application function-key binding\n' >&2
     return 1
   fi
 }
 
 bash_runtime() {
-  local tmp_home
+  local tmp_home root bashrc
   tmp_home=$(mktemp -d)
+  root=$DOTFILES_ROOT
+  bashrc="$root/bash/.bashrc"
 
-  CI= SSH_CONNECTION= SSH_TTY= TMUX= \
-    HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
-    bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
+  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
+    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
+    bash --noprofile --rcfile "$bashrc" -ic \
     'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
     || return 1
 
-  CI= SSH_CONNECTION= SSH_TTY= TMUX=/tmp/dotfiles-test,1,0 \
-    HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
-    bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
+  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
+    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
+    bash --noprofile --rcfile "$bashrc" -ic \
     'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
     || return 1
 
-  CI=true SSH_CONNECTION= SSH_TTY= TMUX= \
-    HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
-    bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
+  env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
+    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
+    bash --noprofile --rcfile "$bashrc" -ic \
     'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
 }
 
@@ -201,21 +216,25 @@ zsh_runtime() {
     return 0
   fi
 
-  local tmp_home
+  local tmp_home root
   tmp_home=$(mktemp -d)
+  root=$DOTFILES_ROOT
 
-  CI= SSH_CONNECTION= SSH_TTY= TMUX= \
-    HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
+  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
+    HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
+    DOTFILES_SKIP_COMPLETION=1 \
     zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
     || return 1
 
-  CI= SSH_CONNECTION= SSH_TTY= TMUX=/tmp/dotfiles-test,1,0 \
-    HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
+  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
+    HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
+    DOTFILES_SKIP_COMPLETION=1 \
     zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
     || return 1
 
-  CI=true SSH_CONNECTION= SSH_TTY= TMUX= \
-    HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
+  env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
+    HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
+    DOTFILES_SKIP_COMPLETION=1 \
     zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit'
 }
 
@@ -228,9 +247,12 @@ tmux_runtime() {
   local socket="dotfiles-test-$$"
   (
     trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true' EXIT
-    tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" new-session -d -s smoke -c /tmp || exit 1
-    [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] || exit 1
-    [ "$(tmux -L "$socket" show-options -gqv @tmux_root 2>/dev/null)" = "$DOTFILES_ROOT/tmux" ] || exit 1
+    tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" \
+      new-session -d -s smoke -c /tmp || exit 1
+    [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] \
+      || exit 1
+    [ "$(tmux -L "$socket" show-options -gqv @tmux_root 2>/dev/null)" \
+      = "$DOTFILES_ROOT/tmux" ] || exit 1
     tmux -L "$socket" list-keys >/dev/null || exit 1
     tmux -L "$socket" source-file "$DOTFILES_ROOT/tmux/tmux.conf" || exit 1
   )
@@ -243,14 +265,17 @@ nvim_runtime() {
   fi
 
   if ! nvim --headless --clean \
-    '+if has("nvim-0.11.3") == 0 | cquit | endif' '+qa' >/dev/null 2>&1; then
+    '+if has("nvim-0.11.3") == 0 | cquit | endif' '+qa' >/dev/null 2>&1
+  then
     skip "Neovim runtime: version older than 0.11.3"
     return 0
   fi
 
   local tmp
   tmp=$(mktemp -d)
-  XDG_DATA_HOME="$tmp/data" XDG_STATE_HOME="$tmp/state" XDG_CACHE_HOME="$tmp/cache" \
+  XDG_DATA_HOME="$tmp/data" \
+    XDG_STATE_HOME="$tmp/state" \
+    XDG_CACHE_HOME="$tmp/cache" \
     DOTFILES_NVIM_BOOTSTRAP=0 \
     nvim --headless -u "$DOTFILES_ROOT/nvim/.config/nvim/init.lua" '+qa'
 }
@@ -262,14 +287,16 @@ wezterm_runtime() {
   fi
 
   DOTFILES_WEZTERM_MODE=minimal \
-    wezterm --config-file "$DOTFILES_ROOT/wezterm/.wezterm.lua" show-keys >/dev/null
+    wezterm --config-file "$DOTFILES_ROOT/wezterm/.wezterm.lua" \
+    show-keys >/dev/null
 }
 
 git_runtime() {
   local tmp_home tmp_repo
   tmp_home=$(mktemp -d)
   tmp_repo=$(mktemp -d)
-  HOME="$tmp_home" git config --file "$DOTFILES_ROOT/git/.gitconfig" --list >/dev/null || return 1
+  HOME="$tmp_home" git config --file "$DOTFILES_ROOT/git/.gitconfig" \
+    --list >/dev/null || return 1
   HOME="$tmp_home" git -C "$tmp_repo" init -q || return 1
 }
 
