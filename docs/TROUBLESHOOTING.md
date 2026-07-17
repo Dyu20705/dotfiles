@@ -104,9 +104,14 @@ git config --show-origin --get-regexp '^user\.'
 
 ## LazyDocker warning
 
-The Compose helper mounts `/var/run/docker.sock`. This grants the container
-powerful Docker daemon access. Verify the image version before running:
+Prefer the current native LazyDocker release. The optional Compose helper uses
+Docker Hub's explicit `latest` tag because that repository does not expose tags
+matching current GitHub releases:
 
 ```bash
-LAZYDOCKER_VERSION=v0.25.2 docker compose run --rm lazydocker
+LAZYDOCKER_IMAGE_TAG=latest docker compose run --rm lazydocker
 ```
+
+The helper mounts `/var/run/docker.sock`, which grants powerful Docker daemon
+access. Only run a trusted image. Do not set `LAZYDOCKER_IMAGE_TAG` to a release
+name until that exact tag has been verified in the registry.
