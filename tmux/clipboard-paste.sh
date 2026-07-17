@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -uo pipefail
 
 run_with_timeout() {
   if command -v timeout >/dev/null 2>&1; then
@@ -11,24 +11,39 @@ run_with_timeout() {
   fi
 }
 
-clipboard_data=""
-
+provider=""
 if command -v wl-paste >/dev/null 2>&1; then
-  clipboard_data="$(run_with_timeout wl-paste --no-newline 2>/dev/null || true)"
+  provider=wayland
+elif command -v xclip >/dev/null 2>&1; then
+  provider=x11
+elif command -v pbpaste >/dev/null 2>&1; then
+  provider=macos
+elif command -v powershell.exe >/dev/null 2>&1; then
+  provider=wsl
+else
+  exit 0
 fi
 
-if [ -z "$clipboard_data" ] && command -v xclip >/dev/null 2>&1; then
-  clipboard_data="$(run_with_timeout xclip -o -selection clipboard 2>/dev/null || true)"
-fi
+read_clipboard() {
+  case "$provider" in
+    wayland)
+      run_with_timeout wl-paste --no-newline 2>/dev/null
+      ;;
+    x11)
+      run_with_timeout xclip -o -selection clipboard 2>/dev/null
+      ;;
+    macos)
+      run_with_timeout pbpaste 2>/dev/null
+      ;;
+    wsl)
+      run_with_timeout powershell.exe -NoProfile -Command 'Get-Clipboard -Raw' 2>/dev/null \
+        | tr -d '\r'
+      ;;
+  esac
+}
 
-if [ -z "$clipboard_data" ] && command -v pbpaste >/dev/null 2>&1; then
-  clipboard_data="$(run_with_timeout pbpaste 2>/dev/null || true)"
+# Stream directly into tmux so multiline content and trailing data are not
+# truncated by command substitution or stored in a shell variable.
+if read_clipboard | tmux load-buffer - >/dev/null 2>&1; then
+  tmux paste-buffer >/dev/null 2>&1 || true
 fi
-
-if [ -z "$clipboard_data" ] && command -v powershell.exe >/dev/null 2>&1; then
-  clipboard_data="$(run_with_timeout powershell.exe -NoProfile -Command 'Get-Clipboard -Raw' 2>/dev/null | tr -d '\r' || true)"
-fi
-
-[ -n "$clipboard_data" ] || exit 0
-printf '%s' "$clipboard_data" | tmux load-buffer - >/dev/null 2>&1 || exit 0
-tmux paste-buffer >/dev/null 2>&1 || true
