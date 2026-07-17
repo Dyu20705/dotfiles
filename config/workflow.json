@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "root_env": "DOTFILES_ROOT",
+  "profiles": {
+    "minimal": {
+      "description": "Portable shell and Git baseline with no optional UI integrations"
+    },
+    "normal": {
+      "description": "Daily terminal workflow with Zsh, tmux, Neovim, Git and jq"
+    },
+    "full": {
+      "description": "Normal workflow plus terminal UI, fuzzy navigation and container helpers"
+    }
+  },
+  "apps": [
+    { "name": "bash", "command": "bash", "minimum": "4.0", "required_in": ["minimal", "normal", "full"] },
+    { "name": "git", "command": "git", "minimum": "2.40", "required_in": ["minimal", "normal", "full"] },
+    { "name": "jq", "command": "jq", "minimum": "1.6", "required_in": ["normal", "full"] },
+    { "name": "zsh", "command": "zsh", "minimum": "5.8", "required_in": ["normal", "full"] },
+    { "name": "tmux", "command": "tmux", "minimum": "3.2", "required_in": ["normal", "full"] },
+    { "name": "nvim", "command": "nvim", "minimum": "0.11.3", "required_in": ["normal", "full"] },
+    { "name": "wezterm", "command": "wezterm", "minimum": null, "required_in": ["full"] },
+    { "name": "lazygit", "command": "lazygit", "minimum": null, "required_in": [] },
+    { "name": "docker", "command": "docker", "minimum": null, "required_in": [] },
+    { "name": "fzf", "command": "fzf", "minimum": null, "required_in": [] },
+    { "name": "zoxide", "command": "zoxide", "minimum": null, "required_in": [] },
+    { "name": "starship", "command": "starship", "minimum": null, "required_in": [] },
+    { "name": "direnv", "command": "direnv", "minimum": null, "required_in": [] },
+    { "name": "atuin", "command": "atuin", "minimum": null, "required_in": [] },
+    { "name": "shellcheck", "command": "shellcheck", "minimum": null, "required_in": [] },
+    { "name": "yamllint", "command": "yamllint", "minimum": null, "required_in": [] }
+  ],
+  "links": [
+    { "source": "zsh/.zshrc", "target": "~/.zshrc", "profiles": ["normal", "full"] },
+    { "source": "bash/.bashrc", "target": "~/.bashrc", "profiles": ["minimal", "normal", "full"] },
+    { "source": "bash/.bash_profile", "target": "~/.bash_profile", "profiles": ["minimal", "normal", "full"] },
+    { "source": "bash/.profile", "target": "~/.profile", "profiles": ["minimal", "normal", "full"] },
+    { "source": "bash/.bash_env", "target": "~/.bash_env", "profiles": ["minimal", "normal", "full"] },
+    { "source": "bash/.bash_aliases", "target": "~/.bash_aliases", "profiles": ["normal", "full"] },
+    { "source": "tmux/tmux.conf", "target": "~/.tmux.conf", "profiles": ["normal", "full"] },
+    { "source": "nvim/.config/nvim", "target": "~/.config/nvim", "profiles": ["normal", "full"] },
+    { "source": "wezterm/.wezterm.lua", "target": "~/.wezterm.lua", "profiles": ["full"] },
+    { "source": "git/.gitconfig", "target": "~/.gitconfig", "profiles": ["minimal", "normal", "full"] },
+    { "source": "lazygit/config.yml", "target": "~/.config/lazygit/config.yml", "profiles": ["full"] },
+    { "source": "scripts/open.sh", "target": "~/.local/bin/dotfiles-open", "profiles": ["minimal", "normal", "full"] },
+    { "source": "scripts/doctor.sh", "target": "~/.local/bin/dotfiles-doctor", "profiles": ["normal", "full"] }
+  ]
+}
