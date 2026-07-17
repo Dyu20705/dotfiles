@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   markdown:
     name: Markdown
@@ -13,40 +20,40 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
       - run: npm install --global markdownlint-cli2
       - run: markdownlint-cli2 README.md "docs/**/*.md"
 
-  shell-yaml:
-    name: Shell and YAML
+  static:
+    name: Static configuration checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update
-      - run: sudo apt-get install -y shellcheck
-      - run: python3 -m pip install --user yamllint
-      - name: Bash syntax
+      - name: Install validation tools
         run: |
-          find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r bash -n
-      - name: ShellCheck
-        run: |
-          find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
-      - name: YAML lint
-        run: |
-          ~/.local/bin/yamllint -d relaxed docker-compose.yaml lazygit/config.yml .github/workflows/validate.yml
+          sudo apt-get update
+          sudo apt-get install -y jq zsh shellcheck lua5.4 yamllint tmux docker-compose-v2
+      - name: Run static checks
+        run: bash scripts/test.sh --profile static
 
-  lua:
-    name: Lua
-    runs-on: ubuntu-latest
+  runtime:
+    name: Runtime smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update
-      - run: sudo apt-get install -y lua5.4 luarocks
-      - run: sudo luarocks install luacheck
-      - name: Lua syntax
+      - name: Install runtime tools on Ubuntu
+        if: runner.os == 'Linux'
         run: |
-          find nvim/.config/nvim/lua wezterm -type f -name '*.lua' -print0 | while IFS= read -r -d '' file; do
-            luac5.4 -p "$file"
-          done
-      - name: Luacheck
-        run: |
-          luacheck nvim/.config/nvim/lua wezterm/.wezterm.lua
+          sudo apt-get update
+          sudo apt-get install -y jq zsh tmux neovim
+      - name: Install runtime tools on macOS
+        if: runner.os == 'macOS'
+        run: brew install jq tmux neovim
+      - name: Run runtime smoke tests
+        run: bash scripts/test.sh --profile runtime
