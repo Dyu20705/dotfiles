@@ -8,11 +8,17 @@ if [ -z "${DOTFILES_ROOT:-}" ]; then
     _dotfiles_source=$(realpath "$_dotfiles_source")
   elif command -v python3 >/dev/null 2>&1; then
     _dotfiles_source=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$_dotfiles_source")
+  elif command -v readlink >/dev/null 2>&1 && [ -L "$_dotfiles_source" ]; then
+    _dotfiles_target=$(readlink "$_dotfiles_source")
+    case "$_dotfiles_target" in
+      /*) _dotfiles_source=$_dotfiles_target ;;
+      *) _dotfiles_source="$(dirname "$_dotfiles_source")/$_dotfiles_target" ;;
+    esac
+    unset _dotfiles_target
   fi
-  DOTFILES_ROOT=$(cd "$(dirname "$_dotfiles_source")/.." 2>/dev/null && pwd)
+  DOTFILES_ROOT=$(cd "$(dirname "$_dotfiles_source")/.." 2>/dev/null && pwd) || DOTFILES_ROOT=$HOME
   unset _dotfiles_source
 fi
-DOTFILES_ROOT=${DOTFILES_ROOT:-$HOME/dotfiles}
 export DOTFILES_ROOT
 
 if [ -r "$DOTFILES_ROOT/bash/.bash_env" ]; then
