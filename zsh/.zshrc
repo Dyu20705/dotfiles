@@ -1,260 +1,182 @@
-# ============================================================================
-# Zsh Configuration - dotfiles minimal, production-ready setup
-# ============================================================================
-# This is a minimal .zshrc suitable for fresh Ubuntu environments
-# See docs/SHELL_SETUP.md for customization options
+# Zsh configuration for the dotfiles terminal workflow.
 
-# ============================================================================
-# Early Initialization
-# ============================================================================
+setopt EXTENDED_HISTORY
+setopt INC_APPEND_HISTORY
+setopt HIST_IGNORE_DUPS
+setopt HIST_FIND_NO_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_SAVE_NO_DUPS
 
-# Enable Zsh options early
-setopt EXTENDED_HISTORY          # Save timestamps in history
-setopt INC_APPEND_HISTORY        # Write to history immediately
-setopt HIST_IGNORE_DUPS          # Don't record duplicates
-setopt HIST_FIND_NO_DUPS         # Don't show duplicates in search
-setopt HIST_IGNORE_SPACE         # Ignore commands starting with space
-setopt HIST_SAVE_NO_DUPS         # Don't save duplicates
-
-# Use unique path arrays so PATH mutations stay idempotent.
 typeset -U path PATH
 
-# History configuration
 HISTSIZE=50000
 SAVEHIST=50000
-HISTFILE=~/.zsh_history
+HISTFILE="${XDG_STATE_HOME:-$HOME/.local/state}/zsh/history"
+mkdir -p "${HISTFILE:h}"
 
-# ==========================================================================
-# Runtime mode and environment detection
-# ==========================================================================
+# Resolve the repository from the real .zshrc location when it is symlinked.
+typeset -g DOTFILES_ROOT="${DOTFILES_ROOT:-${${(%):-%N}:A:h:h}}"
+export DOTFILES_ROOT
 
 DOTFILES_SHELL_MODE=${DOTFILES_SHELL_MODE:-normal}
 DOTFILES_SHELL_REMOTE=0
+DOTFILES_SHELL_IN_TMUX=0
 
 if [[ -n "$CI" || -n "$SSH_CONNECTION" || -n "$SSH_TTY" ]]; then
-    DOTFILES_SHELL_REMOTE=1
+  DOTFILES_SHELL_REMOTE=1
 fi
 
-# Nested tmux sessions are usually latency-sensitive and should avoid extra work.
 if [[ -n "$TMUX" ]]; then
-    DOTFILES_SHELL_REMOTE=1
+  DOTFILES_SHELL_IN_TMUX=1
 fi
 
 DOTFILES_SHELL_EFFECTIVE_MODE="$DOTFILES_SHELL_MODE"
-if [[ "$DOTFILES_SHELL_MODE" != "minimal" && "$DOTFILES_SHELL_MODE" != "full" && "$DOTFILES_SHELL_REMOTE" -eq 1 ]]; then
-    DOTFILES_SHELL_EFFECTIVE_MODE="minimal"
+if [[ "$DOTFILES_SHELL_MODE" != minimal && "$DOTFILES_SHELL_MODE" != full && "$DOTFILES_SHELL_REMOTE" -eq 1 ]]; then
+  DOTFILES_SHELL_EFFECTIVE_MODE=minimal
 fi
 
-# ============================================================================
-# PATH Management (idempotent - safe to re-source)
-# ============================================================================
+export DOTFILES_SHELL_MODE DOTFILES_SHELL_REMOTE DOTFILES_SHELL_IN_TMUX DOTFILES_SHELL_EFFECTIVE_MODE
 
-# Function to add to PATH only if not already present
 add_to_path() {
-    if [[ ":${PATH}:" != *":$1:"* ]]; then
-        export PATH="$1:${PATH}"
-    fi
+  [[ -d "$1" ]] && path=("$1" $path)
 }
 
 path_append() {
-    if [[ ":${PATH}:" != *":$1:"* ]]; then
-        export PATH="${PATH}:$1"
-    fi
+  [[ -d "$1" ]] && path+=($1)
 }
 
-# Add common tool locations
 add_to_path "$HOME/.local/bin"
 add_to_path "$HOME/.cargo/bin"
+add_to_path "$HOME/.npm-global/bin"
 add_to_path "$HOME/.npm/bin"
-add_to_path "$HOME/.fnm/bin"  # Fast Node Manager
+add_to_path "$HOME/.fnm/bin"
 add_to_path "/usr/local/go/bin"
 
-# ============================================================================
-# Core Environment
-# ============================================================================
+export EDITOR=${EDITOR:-nvim}
+export VISUAL=${VISUAL:-nvim}
+export LESS=${LESS:--R}
 
-# Preferred editor
-export EDITOR="nvim"
-export VISUAL="nvim"
-
-# Less options
-export LESS="-R"
-
-# Language
-export LC_ALL=en_US.UTF-8
-export LANG=en_US.UTF-8
-
-# ============================================================================
-# Aliases (safe, useful defaults)
-# ============================================================================
-
-# Navigation
-alias ..='cd ..'
-alias ...='cd ../..'
-alias ~='cd ~'
-
-# List commands
-if command -v exa &> /dev/null; then
-    alias ls='exa'
-    alias la='exa -la'
-    alias ll='exa -l'
-else
-    alias la='ls -la'
-    alias ll='ls -l'
+# Do not force a locale that is not installed on a fresh system.
+if command -v locale >/dev/null 2>&1 && locale -a 2>/dev/null | grep -qi '^en_US\.utf-?8$'; then
+  export LANG=${LANG:-en_US.UTF-8}
+  export LC_ALL=${LC_ALL:-en_US.UTF-8}
 fi
 
-# Editors
+alias ..='cd ..'
+alias ...='cd ../..'
+
+if command -v eza >/dev/null 2>&1; then
+  alias ls='eza'
+  alias la='eza -la'
+  alias ll='eza -l'
+elif command -v exa >/dev/null 2>&1; then
+  alias ls='exa'
+  alias la='exa -la'
+  alias ll='exa -l'
+else
+  alias la='ls -la'
+  alias ll='ls -l'
+fi
+
 alias vi='nvim'
 alias vim='nvim'
-
-# Git (safe, common operations)
 alias ga='git add'
 alias gc='git commit'
 alias gp='git push'
 alias gl='git log'
 alias gs='git status'
 alias gd='git diff'
-
-# System
 alias reload='exec zsh'
-alias sudo='sudo '  # Allow aliases after sudo
+alias sudo='sudo '
 
-# ============================================================================
-# Common Functions
-# ============================================================================
-
-# Create directory and enter it
 mkcd() {
-    mkdir -p "$1" && cd "$1"
+  [[ $# -eq 1 ]] || { print -u2 'usage: mkcd <directory>'; return 2; }
+  mkdir -p -- "$1" && cd -- "$1"
 }
 
-# Find and open in editor
 edit() {
-    local file
-    file=$(find . -type f -name "*$1*" 2>/dev/null | head -1)
-    [[ -n "$file" ]] && ${EDITOR} "$file"
+  [[ $# -ge 1 ]] || { print -u2 'usage: edit <pattern>'; return 2; }
+  local file
+  file=$(find . -type f -name "*$1*" -print -quit 2>/dev/null)
+  [[ -n "$file" ]] && "$EDITOR" "$file"
 }
 
 is_minimal_shell() {
-    [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == "minimal" ]]
+  [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == minimal ]]
 }
 
 is_full_shell() {
-    [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == "full" ]]
+  [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == full ]]
 }
 
-# ============================================================================
-# Shell Integration (if available)
-# ============================================================================
-
 if is_minimal_shell; then
-    # Minimal mode: deterministic prompt, no optional integrations.
-    PROMPT='%F{green}%n%f:%F{blue}%~%f %F{yellow}❯%f '
+  PROMPT='%F{green}%n%f:%F{blue}%~%f %F{yellow}❯%f '
 else
-    # Normal/full mode: load optional integrations only when available.
-    if command -v starship &> /dev/null; then
-        eval "$(starship init zsh)"
-    else
-        # Fallback to basic prompt
-        PROMPT='%F{green}%n%f:%F{blue}%~%f%F{cyan}$(__git_branch)%f %F{yellow}❯%f '
+  if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init zsh)"
+  else
+    __git_branch() {
+      git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/^/ (/' | sed 's/$/)/'
+    }
+    PROMPT='%F{green}%n%f:%F{blue}%~%f%F{cyan}$(__git_branch)%f %F{yellow}❯%f '
+  fi
 
-        # Simple git branch display
-        __git_branch() {
-            git rev-parse --abbrev-ref HEAD 2>/dev/null | sed 's/^/ (/' | sed 's/$/)/'
-        }
-    fi
+  command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
 
-    if command -v zoxide &> /dev/null; then
-        eval "$(zoxide init zsh)"
-    fi
+  if command -v fzf >/dev/null 2>&1; then
+    fzf_init="$(fzf --zsh 2>/dev/null || true)"
+    [[ -n "$fzf_init" ]] && eval "$fzf_init"
+    unset fzf_init
+  fi
 
-    if command -v fzf &> /dev/null; then
-        eval "$(fzf --zsh)"
-    fi
-
-    if command -v direnv &> /dev/null; then
-        eval "$(direnv hook zsh)"
-    fi
-
-        if is_full_shell && command -v atuin &> /dev/null; then
-        eval "$(atuin init zsh)"
-    fi
+  command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"
+  if is_full_shell && command -v atuin >/dev/null 2>&1; then
+    eval "$(atuin init zsh)"
+  fi
 fi
 
-# ============================================================================
-# Completion System
-# ============================================================================
-
-# Enable completion
 autoload -Uz compinit
-
 zcompdump_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
 zcompdump_file="$zcompdump_dir/zcompdump-$ZSH_VERSION"
-[[ -d "$zcompdump_dir" ]] || command mkdir -p "$zcompdump_dir"
+mkdir -p "$zcompdump_dir"
 
-# Load completions cache (faster subsequent starts)
 if [[ -f "$zcompdump_file" ]]; then
-    compinit -d "$zcompdump_file" || {
-        rm -f "$zcompdump_file"
-        compinit -d "$zcompdump_file"
-    }
-else
+  compinit -d "$zcompdump_file" || {
+    rm -f "$zcompdump_file"
     compinit -d "$zcompdump_file"
+  }
+else
+  compinit -d "$zcompdump_file"
 fi
 
-# Completion options
 setopt COMPLETE_IN_WORD
 setopt MENU_COMPLETE
-
-# Case-insensitive completion
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
 
-# ============================================================================
-# Key Bindings
-# ============================================================================
-
-# Emacs-style by default (compatible with most shells)
 bindkey -e
-
-# Common bindings
 bindkey '^[[A' history-search-backward
 bindkey '^[[B' history-search-forward
-
-# Delete key
 bindkey '^[[3~' delete-char
-
-# Home/End keys
 bindkey '^[[H' beginning-of-line
 bindkey '^[[F' end-of-line
 
-# ============================================================================
-# Post-Initialization Checks
-# ============================================================================
-
-# Warn about missing essential tools (non-fatal)
-check_tools() {
-    local essential=("git" "nvim" "tmux")
-    local missing=()
-    
-    for tool in "${essential[@]}"; do
-        if ! command -v "$tool" &> /dev/null; then
-            missing+=("$tool")
-        fi
-    done
-    
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "⚠ Warning: Missing tools - ${missing[*]}" >&2
-    fi
+dotfiles-shell-diagnostics() {
+  print "shell=zsh"
+  print "remote=$DOTFILES_SHELL_REMOTE"
+  print "in_tmux=$DOTFILES_SHELL_IN_TMUX"
+  print "mode=$DOTFILES_SHELL_EFFECTIVE_MODE"
+  print "root=$DOTFILES_ROOT"
+  print "editor=${EDITOR:-<unset>}"
+  print "git=$(command -v git 2>/dev/null || print '<missing>')"
+  print "nvim=$(command -v nvim 2>/dev/null || print '<missing>')"
+  print "tmux=$(command -v tmux 2>/dev/null || print '<missing>')"
 }
 
-# Only run once per session
-if [[ -z "$DOTFILES_SHELL_CHECKED" ]]; then
-    if is_full_shell; then
-        check_tools
-    fi
-    export DOTFILES_SHELL_CHECKED=1
+if [[ -z "$DOTFILES_SHELL_CHECKED" && "$DOTFILES_SHELL_EFFECTIVE_MODE" == full ]]; then
+  missing=()
+  for tool in git nvim tmux jq; do
+    command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+  done
+  (( ${#missing[@]} == 0 )) || print -u2 "Warning: missing tools: ${missing[*]}"
+  export DOTFILES_SHELL_CHECKED=1
 fi
-
-# ============================================================================
-# End of .zshrc
-# ============================================================================
