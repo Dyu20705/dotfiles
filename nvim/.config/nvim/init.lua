@@ -1,5 +1,11 @@
+local strict_startup = vim.env.DOTFILES_NVIM_STRICT == "1" or vim.env.DOTFILES_NVIM_BOOTSTRAP == "0"
+
 local function echo_error(message)
+  vim.g.dotfiles_init_error = message
   vim.api.nvim_echo({ { "dotfiles: " .. message, "ErrorMsg" } }, true, {})
+  if strict_startup then
+    vim.cmd("cquit 1")
+  end
 end
 
 -- `nvim -u /path/to/init.lua` does not automatically make that file's parent
