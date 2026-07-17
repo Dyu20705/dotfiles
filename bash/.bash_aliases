@@ -8,5 +8,10 @@ alias la='ls -A'
 alias l='ls -CF'
 
 mkcd() {
-    mkdir -p "$1" && cd "$1"
+    [ "$#" -eq 1 ] || {
+        printf 'usage: mkcd <directory>\n' >&2
+        return 2
+    }
+    mkdir -p -- "$1" || return
+    cd -- "$1" || return
 }
