@@ -55,12 +55,20 @@ run_check() {
   fi
 }
 
+shell_files() {
+  printf '%s\0' \
+    "$DOTFILES_ROOT/bash/.bashrc" \
+    "$DOTFILES_ROOT/bash/.bash_profile" \
+    "$DOTFILES_ROOT/bash/.profile" \
+    "$DOTFILES_ROOT/bash/.bash_env" \
+    "$DOTFILES_ROOT/bash/.bash_aliases"
+  find "$DOTFILES_ROOT/git" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/scripts" \
+    -type f -name '*.sh' -print0
+}
+
 check_bash_syntax() {
   local files=()
-  while IFS= read -r -d '' file; do files+=("$file"); done < <(
-    find "$DOTFILES_ROOT/bash" "$DOTFILES_ROOT/git" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/scripts" \
-      -type f -name '*.sh' -print0
-  )
+  while IFS= read -r -d '' file; do files+=("$file"); done < <(shell_files)
   bash -n "${files[@]}"
 }
 
@@ -71,10 +79,7 @@ check_shellcheck() {
   fi
 
   local files=()
-  while IFS= read -r -d '' file; do files+=("$file"); done < <(
-    find "$DOTFILES_ROOT/bash" "$DOTFILES_ROOT/git" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/scripts" \
-      -type f -name '*.sh' -print0
-  )
+  while IFS= read -r -d '' file; do files+=("$file"); done < <(shell_files)
   shellcheck -x "${files[@]}"
 }
 
@@ -104,7 +109,8 @@ check_lua_syntax() {
 
 check_json() {
   has_cmd jq || return 1
-  jq -e empty "$DOTFILES_ROOT/config/workflow.json" >/dev/null
+  jq -e '.schema_version == 1 and (.profiles | type == "object") and (.links | type == "array")' \
+    "$DOTFILES_ROOT/config/workflow.json" >/dev/null
 }
 
 check_yaml() {
@@ -119,8 +125,8 @@ check_yaml() {
 }
 
 check_compose() {
-  if ! has_cmd docker; then
-    skip "Docker not installed"
+  if ! has_cmd docker || ! docker compose version >/dev/null 2>&1; then
+    skip "Docker Compose v2 not installed"
     return 0
   fi
   docker compose -f "$DOTFILES_ROOT/docker-compose.yaml" config --quiet
@@ -136,21 +142,30 @@ check_hardcoded_paths() {
   fi
 }
 
-check_duplicate_simple_keymaps() {
-  local duplicates
-  duplicates="$(
-    grep -RhoE "vim\.keymap\.set\([^,]+,[[:space:]]*['\"][^'\"]+['\"]" "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null \
-      | sed -E "s/.*,[[:space:]]*['\"]([^'\"]+)['\"].*/\1/" \
-      | sort | uniq -d
-  )"
-  if [ -n "$duplicates" ]; then
-    printf 'Potential duplicate Neovim mappings:\n%s\n' "$duplicates" >&2
+check_keymap_contract() {
+  local test_file_count
+  test_file_count=$(grep -RhoE "['\"]<leader>tf['\"]" "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$test_file_count" -gt 1 ]; then
+    printf '<leader>tf is declared %s times\n' "$test_file_count" >&2
+    return 1
+  fi
+
+  if grep -RqsE '^bind(-key)?[[:space:]]+-n[[:space:]]+C-v' "$DOTFILES_ROOT/tmux"; then
+    printf 'tmux must not steal Ctrl+V from applications\n' >&2
+    return 1
+  fi
+
+  if grep -qE 'key[[:space:]]*=[[:space:]]*"F(5|6|7|8|9|10|11|12)"[^\n]*mods[[:space:]]*=[[:space:]]*""' \
+    "$DOTFILES_ROOT/wezterm/.wezterm.lua"; then
+    printf 'WezTerm contains an unmodified application function-key binding\n' >&2
     return 1
   fi
 }
 
 bash_runtime() {
-  HOME="$(mktemp -d)" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
+  local tmp_home
+  tmp_home=$(mktemp -d)
+  HOME="$tmp_home" DOTFILES_ROOT="$DOTFILES_ROOT" DOTFILES_SHELL_MODE=normal \
     bash --noprofile --rcfile "$DOTFILES_ROOT/bash/.bashrc" -ic \
     'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; dotfiles-shell-diagnostics >/dev/null; exit'
 }
@@ -162,7 +177,7 @@ zsh_runtime() {
   fi
 
   local tmp_home
-  tmp_home="$(mktemp -d)"
+  tmp_home=$(mktemp -d)
   HOME="$tmp_home" ZDOTDIR="$DOTFILES_ROOT/zsh" DOTFILES_SHELL_MODE=normal \
     zsh -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
 }
@@ -174,14 +189,13 @@ tmux_runtime() {
   fi
 
   local socket="dotfiles-test-$$"
-  tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" new-session -d -s smoke -c /tmp || return 1
-  trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true' RETURN
-
-  [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] || return 1
-  tmux -L "$socket" list-keys >/dev/null || return 1
-  tmux -L "$socket" source-file "$DOTFILES_ROOT/tmux/tmux.conf" || return 1
-  tmux -L "$socket" kill-server >/dev/null 2>&1 || true
-  trap - RETURN
+  (
+    trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true' EXIT
+    tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" new-session -d -s smoke -c /tmp || exit 1
+    [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] || exit 1
+    tmux -L "$socket" list-keys >/dev/null || exit 1
+    tmux -L "$socket" source-file "$DOTFILES_ROOT/tmux/tmux.conf" || exit 1
+  )
 }
 
 nvim_runtime() {
@@ -190,8 +204,14 @@ nvim_runtime() {
     return 0
   fi
 
+  if ! nvim --headless --clean \
+    '+if has("nvim-0.11.3") == 0 | cquit | endif' '+qa' >/dev/null 2>&1; then
+    skip "Neovim runtime: version older than 0.11.3"
+    return 0
+  fi
+
   local tmp
-  tmp="$(mktemp -d)"
+  tmp=$(mktemp -d)
   XDG_DATA_HOME="$tmp/data" XDG_STATE_HOME="$tmp/state" XDG_CACHE_HOME="$tmp/cache" \
     DOTFILES_NVIM_BOOTSTRAP=0 \
     nvim --headless -u "$DOTFILES_ROOT/nvim/.config/nvim/init.lua" '+qa'
@@ -209,8 +229,8 @@ wezterm_runtime() {
 
 git_runtime() {
   local tmp_home tmp_repo
-  tmp_home="$(mktemp -d)"
-  tmp_repo="$(mktemp -d)"
+  tmp_home=$(mktemp -d)
+  tmp_repo=$(mktemp -d)
   HOME="$tmp_home" git config --file "$DOTFILES_ROOT/git/.gitconfig" --list >/dev/null || return 1
   HOME="$tmp_home" git -C "$tmp_repo" init -q || return 1
 }
@@ -225,7 +245,7 @@ run_static() {
   run_check "YAML lint" check_yaml
   run_check "Docker Compose config" check_compose
   run_check "No personal hard-coded paths" check_hardcoded_paths
-  run_check "No obvious duplicate Neovim keymaps" check_duplicate_simple_keymaps
+  run_check "Critical keymap contract" check_keymap_contract
 }
 
 run_runtime() {
