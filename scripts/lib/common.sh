@@ -43,7 +43,7 @@ xdg_state_home() {
 expand_home() {
   case "$1" in
     '~') printf '%s\n' "$HOME" ;;
-    '~/'*) printf '%s/%s\n' "$HOME" "${1#~/}" ;;
+    '~/'*) printf '%s/%s\n' "$HOME" "${1#\~/}" ;;
     *) printf '%s\n' "$1" ;;
   esac
 }
@@ -67,9 +67,9 @@ backup_path() {
 
   [ -e "$target" ] || [ -L "$target" ] || return 0
 
-  state_home="$(xdg_state_home)"
-  timestamp="$(date +%Y%m%d-%H%M%S)"
-  relative="${target#$HOME/}"
+  state_home=$(xdg_state_home)
+  timestamp=$(date +%Y%m%d-%H%M%S)
+  relative=${target#$HOME/}
   backup_root="$state_home/dotfiles/backups/$timestamp"
   mkdir -p "$backup_root/$(dirname "$relative")"
   mv "$target" "$backup_root/$relative"
@@ -85,7 +85,7 @@ link_path() {
   mkdir -p "$(dirname "$target")"
 
   if [ -L "$target" ]; then
-    current="$(readlink "$target" 2>/dev/null || true)"
+    current=$(readlink "$target" 2>/dev/null || true)
     if [ "$current" = "$source" ]; then
       info "already linked: $target"
       return 0
@@ -118,6 +118,6 @@ first_version() {
   local command_name=$1
   local output
 
-  output="$($command_name --version 2>&1 | head -n 1 || true)"
+  output=$("$command_name" --version 2>&1 | head -n 1 || true)
   printf '%s\n' "$output"
 }
