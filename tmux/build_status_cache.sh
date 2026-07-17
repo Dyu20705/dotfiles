@@ -1,159 +1,130 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# build_status_cache.sh
-# Compose heavy status components into a single cache file for tmux statusbar.
-# Intended to be run externally (cron, systemd timer, or invoked manually). Avoids shell-outs inside tmux status.
-
-CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/tmux_status"
-TMPFILE=$(mktemp)
-
-# By default do a dry-run; set RUN=1 to actually write the cache file
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+CACHE_DIR="${TMUX_CACHE_DIR:-$CACHE_HOME/dotfiles/tmux}"
+CACHE_FILE="${TMUX_STATUS_CACHE:-$CACHE_DIR/status.txt}"
+TMPFILE=$(mktemp "${TMPDIR:-/tmp}/dotfiles-tmux-status.XXXXXX")
+trap 'rm -f "$TMPFILE"' EXIT
 RUN=${RUN:-0}
 
-# Collectors (add or remove as needed). Keep them fast and minimize network calls.
 collect_pomodoro() {
-  if [ -x "$HOME/dotfiles/tmux/pomodoro.sh" ]; then
-    "$HOME/dotfiles/tmux/pomodoro.sh" || true
-  fi
+  [ -x "$SCRIPT_DIR/pomodoro.sh" ] && "$SCRIPT_DIR/pomodoro.sh" || true
 }
 
 collect_random_note() {
-  if [ -x "$HOME/dotfiles/tmux/random_note.sh" ]; then
-    "$HOME/dotfiles/tmux/random_note.sh" || true
-  fi
+  [ "${DOTFILES_STATUS_RANDOM_NOTE:-0}" = 1 ] || return 0
+  [ -x "$SCRIPT_DIR/random_note.sh" ] && "$SCRIPT_DIR/random_note.sh" || true
 }
 
 collect_memory_pressure() {
   if command -v free >/dev/null 2>&1; then
-    free -m | awk 'NR==2{printf "%.0f", $3/$2*100}'
+    free -m | awk 'NR==2 && $2>0 {printf "MEM %.0f%%", $3/$2*100}'
   fi
 }
 
 collect_battery() {
-  # Example: try upower or /sys/class/power_supply
-  if command -v upower >/dev/null 2>&1; then
-    upower -i "$(upower -e | grep BAT | head -n1)" 2>/dev/null | awk '/percentage/ {print $2}' | tr -d '%'
+  if command -v pmset >/dev/null 2>&1; then
+    pmset -g batt 2>/dev/null | awk -F';' 'NR==2 {gsub(/[^0-9%]/,"",$1); print $1}'
+    return
   fi
+
+  for capacity in /sys/class/power_supply/BAT*/capacity; do
+    [ -r "$capacity" ] || continue
+    cat "$capacity"
+    return
+  done
 }
 
 collect_cpu() {
-  # Non-blocking CPU sampling using cached previous values.
-  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux"
-  PREV_FILE="$CACHE_DIR/cpu_prev"
-  mkdir -p "$CACHE_DIR"
-  if [ ! -r /proc/stat ]; then
-    return
-  fi
-  read -r cpu a b c d e f g h i j < /proc/stat || return
-  idle=$((d + f))
-  total=$((a + b + c + d + e + f + g + h + i + j))
+  [ -r /proc/stat ] || return 0
 
-  if [ -r "$PREV_FILE" ]; then
-    read -r prev_total prev_idle prev_ts < "$PREV_FILE" || true
-    # only use prev if it's recent enough (120s)
-    now=$(date +%s)
-    if [ -n "$prev_ts" ] && [ $((now - prev_ts)) -lt 120 ]; then
+  local prev_file="$CACHE_DIR/cpu-prev" now
+  local cpu user nice system idle iowait irq softirq steal guest guest_nice
+  local total idle_all prev_total prev_idle prev_time diff_total diff_idle
+
+  read -r cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat || return 0
+  idle_all=$((idle + iowait))
+  total=$((user + nice + system + idle + iowait + irq + softirq + steal + guest + guest_nice))
+  now=$(date +%s)
+
+  if [ -r "$prev_file" ]; then
+    read -r prev_total prev_idle prev_time < "$prev_file" || true
+    if [ -n "${prev_time:-}" ] && [ $((now - prev_time)) -lt 300 ]; then
       diff_total=$((total - prev_total))
-      diff_idle=$((idle - prev_idle))
+      diff_idle=$((idle_all - prev_idle))
       if [ "$diff_total" -gt 0 ]; then
-        usage=$((100 * (diff_total - diff_idle) / diff_total))
-        # write current sample for next run
-        printf "%s %s %s" "$total" "$idle" "$now" > "$PREV_FILE" 2>/dev/null || true
-        echo "$usage"
-        return
+        printf 'CPU %d%%' "$((100 * (diff_total - diff_idle) / diff_total))"
       fi
     fi
   fi
 
-  # No usable previous sample: write current and exit empty (so status shows nothing)
-  now=$(date +%s)
-  printf "%s %s %s" "$total" "$idle" "$now" > "$PREV_FILE" 2>/dev/null || true
-  return
+  printf '%s %s %s\n' "$total" "$idle_all" "$now" > "$prev_file"
 }
 
 collect_weather() {
-  # Cached external call to wttr.in (very small); keep short timeout and cache externally.
-  CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tmux"
-  mkdir -p "$CACHE_DIR"
-  CACHE="$CACHE_DIR/weather"
-  CACHE_TTL=${WEATHER_TTL:-900}
+  [ "${DOTFILES_STATUS_WEATHER:-0}" = 1 ] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
 
-  if [ -r "$CACHE" ]; then
-    AGE=$(( $(date +%s) - $(stat -c%Y "$CACHE" 2>/dev/null || stat -f%m "$CACHE" 2>/dev/null || echo 0) ))
-    if [ "$AGE" -lt "$CACHE_TTL" ]; then
-      cat "$CACHE"
+  local cache="$CACHE_DIR/weather.txt"
+  local ttl=${WEATHER_TTL:-900}
+  local now age mtime output
+  now=$(date +%s)
+
+  if [ -r "$cache" ]; then
+    mtime=$(stat -c %Y "$cache" 2>/dev/null || stat -f %m "$cache" 2>/dev/null || printf 0)
+    age=$((now - mtime))
+    if [ "$age" -lt "$ttl" ]; then
+      cat "$cache"
       return
     fi
   fi
 
-  if ! command -v curl >/dev/null 2>&1; then
-    return
-  fi
-
-  # Try fetch, but do not overwrite cache on failure.
-  OUT=$(curl -s --max-time 3 "https://wttr.in/?format=1" 2>/dev/null || true)
-  if [ -n "$OUT" ]; then
-    printf "%s" "$OUT" > "$CACHE" 2>/dev/null || true
-    echo "$OUT"
-  else
-    # fallback: return old cache if present
-    if [ -r "$CACHE" ]; then
-      cat "$CACHE"
-    fi
+  output=$(curl -fsS --max-time 3 'https://wttr.in/?format=1' 2>/dev/null || true)
+  if [ -n "$output" ]; then
+    printf '%s' "$output" > "$cache"
+    printf '%s' "$output"
+  elif [ -r "$cache" ]; then
+    cat "$cache"
   fi
 }
 
 collect_todo_count() {
-  # Prefer configurable todo file via tmux option @todo_file, else default to a single known path.
-  TODO_FILE_DEFAULT="$HOME/Documents/git/scratch/todo.md"
-  TODO_FILE="$TODO_FILE_DEFAULT"
+  local todo_file="${DOTFILES_TODO_FILE:-}"
+  local configured=""
   if command -v tmux >/dev/null 2>&1; then
-    t=$(tmux show-option -gqv @todo_file 2>/dev/null || true)
-    if [ -n "$t" ]; then
-      # expand ~ if present
-      TODO_FILE=${t/#~/$HOME}
-    fi
+    configured=$(tmux show-option -gqv @todo_file 2>/dev/null || true)
+    [ -n "$configured" ] && todo_file=${configured/#\~/$HOME}
   fi
-  if [ -r "$TODO_FILE" ] && command -v timeout >/dev/null 2>&1; then
-    cnt=$(timeout 0.2 grep -cE '^- \[ \]' "$TODO_FILE" 2>/dev/null || true)
-    [ -n "$cnt" ] && echo "$cnt"
-  fi
+  [ -n "$todo_file" ] && [ -r "$todo_file" ] || return 0
+  grep -cE '^- \[ \]' "$todo_file" 2>/dev/null || true
 }
 
-# Build a single-line status. Keep components optional and small.
-{
-  echo -n ""
-  pn=$(collect_pomodoro 2>/dev/null | tr -d '\n')
-  [ -n "$pn" ] && echo -n "$pn "
-  rn=$(collect_random_note 2>/dev/null | tr -d '\n')
-  [ -n "$rn" ] && echo -n "$rn "
-  mem=$(collect_memory_pressure 2>/dev/null)
-  [ -n "$mem" ] && echo -n "${mem}% "
-  cpu=$(collect_cpu 2>/dev/null)
-  [ -n "$cpu" ] && echo -n "CPU ${cpu}% | "
-  todo=$(collect_todo_count 2>/dev/null)
-  if [ -n "$todo" ]; then
-    echo -n "TODO: ${todo} | "
-  fi
-  bat=$(collect_battery 2>/dev/null)
-  [ -n "$bat" ] && echo -n "🔋 ${bat}%"
-  # weather last so it can be longer running/cached
-  weather=$(collect_weather 2>/dev/null)
-  if [ -n "$weather" ]; then
-    echo -n " | ${weather}"
-  fi
-  echo
-} > "$TMPFILE"
+mkdir -p "$CACHE_DIR"
+
+components=()
+for collector in collect_pomodoro collect_random_note collect_memory_pressure collect_cpu; do
+  value=$($collector 2>/dev/null | tr -d '\n')
+  [ -n "$value" ] && components+=("$value")
+done
+
+todo=$(collect_todo_count 2>/dev/null | tr -d '\n')
+[ -n "$todo" ] && components+=("TODO $todo")
+
+battery=$(collect_battery 2>/dev/null | tr -d '\n')
+[ -n "$battery" ] && components+=("BAT ${battery%%%}%")
+
+weather=$(collect_weather 2>/dev/null | tr -d '\n')
+[ -n "$weather" ] && components+=("$weather")
+
+(IFS=' | '; printf '%s\n' "${components[*]}") > "$TMPFILE"
 
 if [ "$RUN" -eq 1 ]; then
-  mkdir -p "$(dirname "$CACHE_FILE")"
   mv "$TMPFILE" "$CACHE_FILE"
-  chmod 644 "$CACHE_FILE"
-  echo "Wrote cache to $CACHE_FILE"
+  chmod 600 "$CACHE_FILE"
+  trap - EXIT
+  printf 'Wrote %s\n' "$CACHE_FILE"
 else
-  echo "Dry run — candidate cache contents:"
-  cat "$TMPFILE" || true
-  rm -f "$TMPFILE"
-  echo "To write: RUN=1 $0"
+  cat "$TMPFILE"
 fi
