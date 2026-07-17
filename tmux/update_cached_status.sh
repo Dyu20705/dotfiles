@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-# update_cached_status.sh — read ~/.cache/tmux_status and write to tmux option @tmux_cached_status
 set -euo pipefail
-CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/tmux_status"
-if [ -r "$CACHE_FILE" ]; then
-  val=$(cat "$CACHE_FILE" 2>/dev/null || true)
-  # Trim trailing newlines
-  val=$(printf "%s" "$val" | tr -d '\n')
-  # Sanitize hashes to avoid tmux format injection (escape #)
-  safe=$(printf "%s" "$val" | sed 's/#/##/g')
-  if [ -n "$safe" ]; then
-    tmux set-option -gq @tmux_cached_status "$safe" 2>/dev/null || tmux set-option -gq @tmux_cached_status "" 2>/dev/null
-    # Force clients to refresh less often by using larger status-interval and refresh on update
-    tmux refresh-client -S 2>/dev/null || true
-  else
-    tmux set-option -gq @tmux_cached_status "" 2>/dev/null || true
-  fi
+
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+CACHE_FILE="${TMUX_STATUS_CACHE:-$CACHE_HOME/dotfiles/tmux/status.txt}"
+
+if [ ! -r "$CACHE_FILE" ]; then
+  tmux set-option -gq @tmux_cached_status "" 2>/dev/null || true
+  exit 0
 fi
-exit 0
+
+value=$(tr -d '\n' < "$CACHE_FILE" 2>/dev/null || true)
+safe=$(printf '%s' "$value" | sed 's/#/##/g')
+tmux set-option -gq @tmux_cached_status "$safe" 2>/dev/null || true
+tmux refresh-client -S 2>/dev/null || true
