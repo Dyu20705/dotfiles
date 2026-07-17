@@ -1,6 +1,9 @@
 services:
   lazydocker:
-    image: lazyteam/lazydocker:${LAZYDOCKER_VERSION:-v0.25.2}
+    # The upstream Docker Hub repository currently exposes `latest` and legacy
+    # version tags, not tags matching current GitHub releases. Keep this choice
+    # explicit and prefer the native LazyDocker binary for the newest release.
+    image: lazyteam/lazydocker:${LAZYDOCKER_IMAGE_TAG:-latest}
     stdin_open: true
     tty: true
     environment:
