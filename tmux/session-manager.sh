@@ -1,119 +1,127 @@
 #!/usr/bin/env bash
-# tmux-session-manager.sh
-# 
-# Deterministic session lifecycle management
-# Goals:
-# - Create named sessions with clear purpose
-# - Restore sessions in deterministic order
-# - Show session context (project, branch, workspace)
-# 
-# Usage:
-#   tmux-session-manager.sh create <name> <directory> [description]
-#   tmux-session-manager.sh list
-#   tmux-session-manager.sh restore
-#   tmux-session-manager.sh delete <name>
+set -euo pipefail
 
-set +e
-
-SESSIONS_DIR="$HOME/.cache/tmux_sessions"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+SESSIONS_DIR="${TMUX_SESSIONS_DIR:-$STATE_HOME/dotfiles/tmux/sessions}"
 mkdir -p "$SESSIONS_DIR"
 
-read_session_field() {
-  local file="$1"
-  local field="$2"
+usage() {
+  cat <<'EOF'
+Usage:
+  session-manager.sh create <name> <directory> [description]
+  session-manager.sh list
+  session-manager.sh restore
+  session-manager.sh delete <name>
+EOF
+}
 
-  python3 - "$file" "$field" <<'PY'
-import json
-import sys
+require_jq() {
+  command -v jq >/dev/null 2>&1 || {
+    printf 'jq is required for tmux session metadata\n' >&2
+    exit 1
+  }
+}
 
-path = sys.argv[1]
-field = sys.argv[2]
+validate_name() {
+  case "$1" in
+    ''|*[!A-Za-z0-9._-]*)
+      printf 'Invalid session name: %s\n' "$1" >&2
+      return 1
+      ;;
+  esac
+}
 
-with open(path, 'r', encoding='utf-8') as handle:
-    data = json.load(handle)
-
-value = data.get(field, '')
-if value is None:
-    value = ''
-
-print(value)
-PY
+metadata_path() {
+  printf '%s/%s.json\n' "$SESSIONS_DIR" "$1"
 }
 
 create_session() {
-  local name="$1"
-  local dir="$2"
-  local desc="${3:-}"
-  
-  # Create tmux session
-  tmux new-session -d -s "$name" -c "$dir" 2>/dev/null || {
-    echo "✗ Failed to create session '$name'"
+  local name=$1
+  local directory=$2
+  local description=${3:-}
+  local file tmp
+
+  validate_name "$name"
+  [ -d "$directory" ] || { printf 'Directory does not exist: %s\n' "$directory" >&2; return 1; }
+  directory=$(cd "$directory" && pwd)
+
+  if tmux has-session -t "=$name" 2>/dev/null; then
+    printf 'Session already exists: %s\n' "$name" >&2
     return 1
-  }
-  
-  # Save metadata
-  cat > "$SESSIONS_DIR/$name" <<EOF
-{
-  "name": "$name",
-  "directory": "$dir",
-  "description": "$desc",
-  "created": $(date +%s)
-}
-EOF
-  
-  echo "✔ Session '$name' created"
+  fi
+
+  tmux new-session -d -s "$name" -c "$directory"
+
+  file=$(metadata_path "$name")
+  tmp=$(mktemp "${TMPDIR:-/tmp}/dotfiles-session.XXXXXX")
+  jq -n \
+    --arg name "$name" \
+    --arg directory "$directory" \
+    --arg description "$description" \
+    --argjson created "$(date +%s)" \
+    '{schema_version:1,name:$name,directory:$directory,description:$description,created:$created}' \
+    > "$tmp"
+  mv "$tmp" "$file"
+  chmod 600 "$file"
+  printf 'Created session: %s (%s)\n' "$name" "$directory"
 }
 
 list_sessions() {
-  echo "Active TMux Sessions:"
-  tmux list-sessions -F "#{session_name} (#{session_windows} windows)" 2>/dev/null
-  
-  if [ -d "$SESSIONS_DIR" ]; then
-    echo ""
-    echo "Saved Session Metadata:"
-    find "$SESSIONS_DIR" -maxdepth 1 -type f -print0 2>/dev/null | sort -z |
-      while IFS= read -r -d '' session_file; do
-        name=$(read_session_field "$session_file" name)
-        dir=$(read_session_field "$session_file" directory)
-        desc=$(read_session_field "$session_file" description)
-        [ -n "$name" ] && printf '%s | %s | %s\n' "$name" "$dir" "$desc"
-      done
-  fi
+  printf 'Active tmux sessions:\n'
+  tmux list-sessions -F '  #{session_name} | #{session_windows} windows | #{session_path}' 2>/dev/null \
+    || printf '  <none>\n'
+
+  printf '\nSaved session metadata:\n'
+  local found=0 file
+  while IFS= read -r -d '' file; do
+    found=1
+    jq -r '"  \(.name) | \(.directory) | \(.description // "")"' "$file" \
+      || printf '  invalid metadata: %s\n' "$file" >&2
+  done < <(find "$SESSIONS_DIR" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
+  [ "$found" -eq 1 ] || printf '  <none>\n'
 }
 
 restore_sessions() {
-  if [ ! -d "$SESSIONS_DIR" ]; then
-    echo "No saved sessions"
-    return
-  fi
-  
-  find "$SESSIONS_DIR" -maxdepth 1 -type f -print0 2>/dev/null | sort -z |
-    while IFS= read -r -d '' session_file; do
-      name=$(read_session_field "$session_file" name)
-      dir=$(read_session_field "$session_file" directory)
+  local file name directory
+  while IFS= read -r -d '' file; do
+    if ! jq -e '.schema_version == 1 and (.name | type == "string") and (.directory | type == "string")' "$file" >/dev/null; then
+      printf 'Skipping invalid metadata: %s\n' "$file" >&2
+      continue
+    fi
 
-      [ -z "$name" ] && continue
-      [ -z "$dir" ] && dir="$HOME"
+    name=$(jq -r '.name' "$file")
+    directory=$(jq -r '.directory' "$file")
+    validate_name "$name" || continue
 
-      # Restore if session doesn't exist.
-      if ! tmux has-session -t "$name" 2>/dev/null; then
-        tmux new-session -d -s "$name" -c "$dir"
-        echo "Restored session: $name"
-      fi
-    done
+    if [ ! -d "$directory" ]; then
+      printf 'Skipping %s; directory missing: %s\n' "$name" "$directory" >&2
+      continue
+    fi
+
+    if ! tmux has-session -t "=$name" 2>/dev/null; then
+      tmux new-session -d -s "$name" -c "$directory"
+      printf 'Restored session: %s\n' "$name"
+    fi
+  done < <(find "$SESSIONS_DIR" -maxdepth 1 -type f -name '*.json' -print0 | sort -z)
 }
 
 delete_session() {
-  local name="$1"
-  tmux kill-session -t "$name" 2>/dev/null
-  rm -f "$SESSIONS_DIR/$name"
-  echo "✔ Session '$name' deleted"
+  local name=$1
+  validate_name "$name"
+
+  if tmux has-session -t "=$name" 2>/dev/null; then
+    tmux kill-session -t "=$name"
+  fi
+  rm -f "$(metadata_path "$name")"
+  printf 'Deleted session: %s\n' "$name"
 }
+
+require_jq
 
 case "${1:-list}" in
   create)
-    [ $# -lt 2 ] && { echo "Usage: $0 create <name> <dir> [description]"; exit 1; }
-    create_session "$2" "$3" "$4"
+    [ $# -ge 3 ] || { usage >&2; exit 2; }
+    create_session "$2" "$3" "${4:-}"
     ;;
   list)
     list_sessions
@@ -122,11 +130,14 @@ case "${1:-list}" in
     restore_sessions
     ;;
   delete)
-    [ -z "$2" ] && { echo "Usage: $0 delete <name>"; exit 1; }
+    [ $# -eq 2 ] || { usage >&2; exit 2; }
     delete_session "$2"
     ;;
+  -h|--help|help)
+    usage
+    ;;
   *)
-    echo "Unknown command: $1"
-    exit 1
+    usage >&2
+    exit 2
     ;;
 esac
