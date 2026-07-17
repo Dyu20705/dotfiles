@@ -89,8 +89,6 @@ link_path() {
   local dry_run=${3:-0}
   local current
 
-  mkdir -p "$(dirname "$target")"
-
   if [ -L "$target" ]; then
     current=$(readlink "$target" 2>/dev/null || true)
     if [ "$current" = "$source" ]; then
@@ -104,6 +102,7 @@ link_path() {
     return 0
   fi
 
+  mkdir -p "$(dirname "$target")"
   backup_path "$target"
   ln -s "$source" "$target"
   info "linked $target -> $source"

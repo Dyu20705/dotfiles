@@ -45,11 +45,6 @@ validate_profile "$PROFILE"
 info "root: $DOTFILES_ROOT"
 info "profile: $PROFILE"
 
-if [ "$DRY_RUN" -eq 0 ]; then
-  find "$DOTFILES_ROOT/scripts" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/git" \
-    -type f -name '*.sh' -exec chmod u+x {} + 2>/dev/null || true
-fi
-
 while IFS=$'\t' read -r source_rel target_raw; do
   [ -n "$source_rel" ] || continue
   source="$DOTFILES_ROOT/$source_rel"

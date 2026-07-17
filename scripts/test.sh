@@ -131,6 +131,85 @@ check_json() {
   ' "$DOTFILES_ROOT/config/workflow.json" >/dev/null
 }
 
+check_doctor_json() {
+  local app_count output tmp_home
+  tmp_home=$(mktemp -d)
+  app_count=$(jq '.apps | length' "$DOTFILES_ROOT/config/workflow.json")
+  output=$(
+    HOME="$tmp_home" \
+      XDG_CONFIG_HOME="$tmp_home/.config" \
+      XDG_CACHE_HOME="$tmp_home/.cache" \
+      XDG_STATE_HOME="$tmp_home/.local/state" \
+      XDG_DATA_HOME="$tmp_home/.local/share" \
+      bash "$DOTFILES_ROOT/scripts/doctor.sh" --profile minimal --json \
+      2>/dev/null || true
+  )
+  rm -rf "$tmp_home"
+
+  printf '%s\n' "$output" | jq -e --argjson app_count "$app_count" '
+    .schema_version == 1
+    and .profile == "minimal"
+    and ([.checks[] | select(.type == "command")] | length == $app_count)
+    and (.summary.failures | type == "number")
+  ' >/dev/null
+}
+
+check_bootstrap_dry_run() {
+  local tmp_home
+  tmp_home=$(mktemp -d)
+
+  HOME="$tmp_home" \
+    XDG_CONFIG_HOME="$tmp_home/.config" \
+    XDG_CACHE_HOME="$tmp_home/.cache" \
+    XDG_STATE_HOME="$tmp_home/.local/state" \
+    XDG_DATA_HOME="$tmp_home/.local/share" \
+    bash "$DOTFILES_ROOT/scripts/bootstrap.sh" --profile normal --dry-run \
+    >/dev/null || {
+      rm -rf "$tmp_home"
+      return 1
+    }
+
+  if find "$tmp_home" -mindepth 1 -print -quit | grep -q .; then
+    rm -rf "$tmp_home"
+    return 1
+  fi
+  rm -rf "$tmp_home"
+}
+
+checkout_shell_snapshot() {
+  find "$DOTFILES_ROOT/scripts" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/git" \
+    -type f -name '*.sh' -print | sort | while IFS= read -r file; do
+      if [ -x "$file" ]; then
+        executable=x
+      else
+        executable=-
+      fi
+      checksum=$(cksum "$file")
+      printf '%s\t%s\t%s\n' "$file" "$executable" "$checksum"
+    done | cksum
+}
+
+check_bootstrap_preserves_checkout() {
+  local after before tmp_home
+  tmp_home=$(mktemp -d)
+  before=$(checkout_shell_snapshot)
+
+  HOME="$tmp_home" \
+    XDG_CONFIG_HOME="$tmp_home/.config" \
+    XDG_CACHE_HOME="$tmp_home/.cache" \
+    XDG_STATE_HOME="$tmp_home/.local/state" \
+    XDG_DATA_HOME="$tmp_home/.local/share" \
+    bash "$DOTFILES_ROOT/scripts/bootstrap.sh" --profile normal \
+    >/dev/null || {
+      rm -rf "$tmp_home"
+      return 1
+    }
+
+  after=$(checkout_shell_snapshot)
+  rm -rf "$tmp_home"
+  [ "$before" = "$after" ]
+}
+
 check_yaml() {
   if ! has_cmd yamllint; then
     skip "yamllint not installed"
@@ -163,7 +242,7 @@ check_hardcoded_paths() {
 }
 
 check_keymap_contract() {
-  local test_file_count
+  local nvim_navigator_count test_file_count tmux_navigator_count
   test_file_count=$(grep -RhoE "['\"]<leader>tf['\"]" \
     "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null \
     | wc -l | tr -d ' ')
@@ -186,6 +265,18 @@ check_keymap_contract() {
     printf 'WezTerm contains an unmodified application function-key binding\n' >&2
     return 1
   fi
+
+  nvim_navigator_count=$(grep -Rhl 'christoomey/vim-tmux-navigator' \
+    "$DOTFILES_ROOT/nvim/.config/nvim/lua/plugins" 2>/dev/null | wc -l | tr -d ' ')
+  tmux_navigator_count=$(grep -Fhc "set -g @plugin 'christoomey/vim-tmux-navigator'" \
+    "$DOTFILES_ROOT/tmux/plugins.conf" 2>/dev/null || true)
+  if [ "$nvim_navigator_count" -ne 1 ] || [ "$tmux_navigator_count" -ne 1 ]; then
+    printf 'vim-tmux-navigator must be declared once in both Neovim and tmux\n' >&2
+    return 1
+  fi
+
+  jq -e '."vim-tmux-navigator".commit | test("^[0-9a-f]{40}$")' \
+    "$DOTFILES_ROOT/nvim/.config/nvim/lazy-lock.json" >/dev/null
 }
 
 bash_runtime() {
@@ -309,6 +400,9 @@ run_static() {
   run_check "Zsh syntax" check_zsh_syntax
   run_check "Lua syntax" check_lua_syntax
   run_check "JSON manifest" check_json
+  run_check "Doctor JSON report" check_doctor_json
+  run_check "Bootstrap dry-run is read-only" check_bootstrap_dry_run
+  run_check "Bootstrap preserves checkout" check_bootstrap_preserves_checkout
   run_check "YAML lint" check_yaml
   run_check "Docker Compose config" check_compose
   run_check "No personal hard-coded paths" check_hardcoded_paths

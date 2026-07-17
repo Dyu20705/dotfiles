@@ -58,7 +58,7 @@ validate_profile "$PROFILE"
 TMP_RESULTS=$(mktemp)
 trap 'rm -f "$TMP_RESULTS"' EXIT
 
-while IFS=$'\t' read -r name command_name minimum required; do
+while IFS=$'\034' read -r name command_name minimum required; do
   path=$(command -v "$command_name" 2>/dev/null || true)
   version=""
   detected_version=""
@@ -100,8 +100,13 @@ while IFS=$'\t' read -r name command_name minimum required; do
 done < <(
   jq -r --arg profile "$PROFILE" '
     .apps[]
-    | [.name, .command, (.minimum // ""), ((.required_in | index($profile)) != null)]
-    | @tsv
+    | [
+        .name,
+        .command,
+        (.minimum // ""),
+        (((.required_in | index($profile)) != null) | tostring)
+      ]
+    | join("\u001c")
   ' "$DOTFILES_MANIFEST"
 )
 
