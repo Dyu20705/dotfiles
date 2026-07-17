@@ -1,38 +1,68 @@
-[user]
-	name = Dyu200705
-	email = duy28092005yh@gmail.com
+[include]
+	path = ~/.gitconfig.local
+
 [core]
 	editor = nvim
 	pager = less -FRX
-[core]
 	excludesFile = ~/.gitignore
+
 [init]
 	defaultBranch = main
+
 [fetch]
 	prune = true
+	pruneTags = true
+
 [push]
 	default = simple
+	autoSetupRemote = true
+
+[pull]
+	ff = only
+
 [merge]
 	conflictStyle = zdiff3
+	tool = nvimdiff
+
 [diff]
 	algorithm = histogram
 	tool = nvimdiff
+
+[difftool "nvimdiff"]
+	cmd = nvim -f -d "$LOCAL" "$REMOTE"
+
+[mergetool "nvimdiff"]
+	cmd = nvim -f -d "$LOCAL" "$MERGED" "$REMOTE"
+	trustExitCode = true
+	keepBackup = false
+
+[rerere]
+	enabled = true
+	autoupdate = true
+
 [color]
 	ui = auto
-[difftool "nvimdiff"]
-	cmd = nvim -d "$LOCAL" "$REMOTE"
-[merge]
-	tool = nvimdiff
-[mergetool "nvimdiff"]
-	cmd = nvim -d "$LOCAL" "$REMOTE" -ancestor "$BASE" -merge "$MERGED"
-	trustExitCode = true
+
+[column]
+	ui = auto
+
+[branch]
+	sort = -committerdate
+
+[tag]
+	sort = version:refname
+
+[help]
+	autocorrect = prompt
+
 [alias]
 	st = status
 	co = checkout
+	sw = switch
 	br = branch
 	ci = commit
 	ca = commit -a
 	d = diff
 	lg = log --graph --decorate --oneline --date=relative --all
 	last = log -1 --stat
-	unstage = reset HEAD --
+	unstage = restore --staged
