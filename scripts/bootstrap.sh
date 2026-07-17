@@ -39,27 +39,47 @@ while [ $# -gt 0 ]; do
 done
 
 require_cmd jq
-[ -r "$DOTFILES_MANIFEST" ] || die "manifest not found: $DOTFILES_MANIFEST"
+validate_manifest || die "manifest validation failed: $DOTFILES_MANIFEST"
 validate_profile "$PROFILE"
 
 info "root: $DOTFILES_ROOT"
 info "profile: $PROFILE"
 
+TMP_LINKS=$(mktemp)
+trap 'rm -f "$TMP_LINKS"' EXIT
+
+if ! jq -r --arg profile "$PROFILE" '
+  .links[]
+  | select(.profiles | index($profile))
+  | [.source, .target]
+  | @tsv
+' "$DOTFILES_MANIFEST" > "$TMP_LINKS"; then
+  die "failed to read links for profile: $PROFILE"
+fi
+
+# Validate every source and target before changing the user's home directory.
 while IFS=$'\t' read -r source_rel target_raw; do
   [ -n "$source_rel" ] || continue
   source="$DOTFILES_ROOT/$source_rel"
-  target="$(expand_home "$target_raw")"
+  target=$(expand_home "$target_raw")
 
   [ -e "$source" ] || die "manifest source does not exist: $source"
+  case "$target" in
+    "$HOME"/*) ;;
+    *) die "manifest target is outside HOME: $target" ;;
+  esac
+done < "$TMP_LINKS"
+
+if [ "$DRY_RUN" -eq 0 ] && [ -z "${DOTFILES_BACKUP_ROOT:-}" ]; then
+  DOTFILES_BACKUP_ROOT="$(xdg_state_home)/dotfiles/backups/$(date +%Y%m%d-%H%M%S)-$$"
+fi
+
+while IFS=$'\t' read -r source_rel target_raw; do
+  [ -n "$source_rel" ] || continue
+  source="$DOTFILES_ROOT/$source_rel"
+  target=$(expand_home "$target_raw")
   link_path "$source" "$target" "$DRY_RUN"
-done < <(
-  jq -r --arg profile "$PROFILE" '
-    .links[]
-    | select(.profiles | index($profile))
-    | [.source, .target]
-    | @tsv
-  ' "$DOTFILES_MANIFEST"
-)
+done < "$TMP_LINKS"
 
 if [ "$DRY_RUN" -eq 0 ]; then
   mkdir -p "$(xdg_cache_home)/dotfiles/tmux" "$(xdg_state_home)/dotfiles/tmux/sessions"
