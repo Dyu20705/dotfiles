@@ -59,7 +59,7 @@ show_status() {
     exit 1
   }
 
-  local now state sessions current mode work_seconds break_seconds phase_started duration elapsed remaining tmp
+  local now state sessions current mode work_seconds break_seconds phase_started duration elapsed remaining
   now=$(date +%s)
   state=$(cat "$STATE_FILE")
 
@@ -112,7 +112,6 @@ case "${1:-status}" in
     show_status
     ;;
   *)
-    # Backward-compatible form: pomodoro.sh <sessions> <work-min> <break-min>
     if [ $# -eq 3 ]; then
       start_timer "$1" "$2" "$3"
     else
