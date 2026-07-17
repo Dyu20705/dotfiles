@@ -55,15 +55,23 @@ run_check() {
   fi
 }
 
-shell_files() {
+bash_dotfiles() {
   printf '%s\0' \
     "$DOTFILES_ROOT/bash/.bashrc" \
     "$DOTFILES_ROOT/bash/.bash_profile" \
     "$DOTFILES_ROOT/bash/.profile" \
     "$DOTFILES_ROOT/bash/.bash_env" \
     "$DOTFILES_ROOT/bash/.bash_aliases"
+}
+
+shell_scripts() {
   find "$DOTFILES_ROOT/git" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/scripts" \
     -type f -name '*.sh' -print0
+}
+
+shell_files() {
+  bash_dotfiles
+  shell_scripts
 }
 
 check_bash_syntax() {
@@ -78,9 +86,12 @@ check_shellcheck() {
     return 0
   fi
 
-  local files=()
-  while IFS= read -r -d '' file; do files+=("$file"); done < <(shell_files)
-  shellcheck -x "${files[@]}"
+  local dotfiles=() scripts=()
+  while IFS= read -r -d '' file; do dotfiles+=("$file"); done < <(bash_dotfiles)
+  while IFS= read -r -d '' file; do scripts+=("$file"); done < <(shell_scripts)
+
+  shellcheck -x --shell=bash "${dotfiles[@]}" || return 1
+  shellcheck -x "${scripts[@]}"
 }
 
 check_zsh_syntax() {
