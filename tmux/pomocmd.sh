@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-INPUT="$1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INPUT=${1:-}
 DEFAULT_WORK=30
 DEFAULT_BREAK=5
-DEFAULT_SESS=4
+DEFAULT_SESSIONS=4
 
-# Parse input
-INPUT="${INPUT//,/ }"
+INPUT=${INPUT//,/ }
+read -r sessions work break_minutes <<<"$INPUT"
+sessions=${sessions:-$DEFAULT_SESSIONS}
+work=${work:-$DEFAULT_WORK}
+break_minutes=${break_minutes:-$DEFAULT_BREAK}
 
-read -r SESS WORK BREAK <<<"$INPUT"
-
-SESS=${SESS:-$DEFAULT_SESS}
-WORK=${WORK:-$DEFAULT_WORK}
-BREAK=${BREAK:-$DEFAULT_BREAK}
-
-~/dotfiles/tmux/pomodoro.sh "$SESS" "$WORK" "$BREAK"
+exec "$SCRIPT_DIR/pomodoro.sh" start "$sessions" "$work" "$break_minutes"
