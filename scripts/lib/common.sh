@@ -42,9 +42,13 @@ xdg_state_home() {
 
 expand_home() {
   local value=$1
-  if [ "$value" = "~" ]; then
+  local tilde tilde_slash
+  tilde=$(printf '\176')
+  tilde_slash="${tilde}/"
+
+  if [ "$value" = "$tilde" ]; then
     printf '%s\n' "$HOME"
-  elif [ "${value:0:2}" = "~/" ]; then
+  elif [ "${value:0:2}" = "$tilde_slash" ]; then
     printf '%s/%s\n' "$HOME" "${value:2}"
   else
     printf '%s\n' "$value"
