@@ -28,7 +28,7 @@ installation, diagnostics, state management and smoke tests.
 | Editor | Neovim 0.11.3+ with lazy-loaded plugins | `nvim/.config/nvim/` |
 | Git | portable defaults plus local identity | `git/.gitconfig` |
 | TUI | LazyGit with a portable opener | `lazygit/config.yml` |
-| Containers | optional pinned LazyDocker helper | `docker-compose.yaml` |
+| Containers | optional documented LazyDocker helper | `docker-compose.yaml` |
 
 The supported commands, minimum versions, profiles and symlinks are declared in
 `config/workflow.json`.
@@ -102,7 +102,7 @@ asset paths can be overridden with `DOTFILES_WEZTERM_BG_DIR`,
 ### tmux
 
 - Prefix: `Ctrl+A`
-- Split horizontal: `Prefix+\\`
+- Split horizontal: `Prefix+\`
 - Split vertical: `Prefix+-`
 - Session chooser: `Prefix+s`
 - Clipboard paste: `Prefix+p` or `Shift+Insert`
@@ -139,13 +139,24 @@ explicitly with `DOTFILES_STATUS_WEATHER=1` or
 
 ## LazyDocker helper
 
+Prefer installing the current native LazyDocker release. The optional Compose
+helper remains available for convenience:
+
 ```bash
 docker compose run --rm lazydocker
 ```
 
-The image defaults to `v0.25.2`; override it with `LAZYDOCKER_VERSION` after
-reviewing the release. Mounting `/var/run/docker.sock` gives the container
-powerful control over the host Docker daemon. Only run trusted images.
+The upstream Docker Hub repository does not publish tags matching current
+GitHub releases, so the helper uses the explicitly documented `latest` tag.
+Override it only with a tag you have verified exists:
+
+```bash
+LAZYDOCKER_IMAGE_TAG=latest docker compose run --rm lazydocker
+```
+
+Mounting `/var/run/docker.sock` gives the container powerful control over the
+host Docker daemon. Only run trusted images. A future GHCR workflow should build
+current releases and allow the Compose file to pin a verified digest.
 
 ## Documentation
 
