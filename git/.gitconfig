@@ -28,13 +28,11 @@
 	algorithm = histogram
 	tool = nvimdiff
 
-[difftool "nvimdiff"]
-	cmd = nvim -f -d "$LOCAL" "$REMOTE"
+[mergetool]
+	keepBackup = false
 
 [mergetool "nvimdiff"]
-	cmd = nvim -f -d "$LOCAL" "$MERGED" "$REMOTE"
-	trustExitCode = true
-	keepBackup = false
+	layout = LOCAL,MERGED,REMOTE
 
 [rerere]
 	enabled = true
