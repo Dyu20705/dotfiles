@@ -2,272 +2,232 @@ local wezterm = require("wezterm")
 local act = wezterm.action
 local config = wezterm.config_builder()
 
--- ============================================================
--- GLOBAL
--- ============================================================
+local home = os.getenv("HOME") or ""
+local root = os.getenv("DOTFILES_ROOT")
+local mode = os.getenv("DOTFILES_WEZTERM_MODE") or "normal"
 
-local home = os.getenv("HOME")
-math.randomseed(os.time())
-math.random(); math.random(); math.random()
+if mode ~= "minimal" and mode ~= "normal" and mode ~= "aesthetic" then
+  wezterm.log_warn("Unknown DOTFILES_WEZTERM_MODE=" .. mode .. "; using normal")
+  mode = "normal"
+end
 
--- Runtime mode and environment-aware behavior
--- Modes: "minimal" (fast, no side-effects), "normal" (default), "aesthetic" (opt-in visuals/audio)
-local MODE = os.getenv("DOTFILES_WEZTERM_MODE") or "normal"
+local function find_command(command)
+  local handle = io.popen("command -v " .. command .. " 2>/dev/null")
+  if not handle then
+    return nil
+  end
+  local path = handle:read("*a") or ""
+  handle:close()
+  path = path:gsub("%s+$", "")
+  return path ~= "" and path or nil
+end
 
-local brightness = 0.03
-
-local background_folder = home .. "/bg"
-local music_folder = home .. "/dotfiles/wezterm/sd"
-local bg_image = os.getenv("DOTFILES_WEZTERM_BG") or (home .. "/dotfiles/wezterm/bg/bg.png")
-local default_music = music_folder .. "/bg.mp3"
+local function file_exists(path)
+  if not path or path == "" then
+    return false
+  end
+  local handle = io.open(path, "rb")
+  if handle then
+    handle:close()
+    return true
+  end
+  return false
+end
 
 local function has_suffix(path, suffixes)
-    local lower = string.lower(path)
-    for _, suffix in ipairs(suffixes) do
-        if lower:sub(-#suffix) == suffix then
-            return true
-        end
+  local lower = string.lower(path)
+  for _, suffix in ipairs(suffixes) do
+    if lower:sub(-#suffix) == suffix then
+      return true
     end
-    return false
+  end
+  return false
 end
 
-local function build_index(pattern, suffixes, fallback)
-    local entries = {}
-    local seen = {}
-
-    local ok, paths = pcall(wezterm.glob, pattern)
-    if ok then
-        for _, path in ipairs(paths) do
-            if has_suffix(path, suffixes) and not seen[path] then
-                seen[path] = true
-                table.insert(entries, path)
-            end
-        end
-    end
-
-    if #entries == 0 and fallback then
-        table.insert(entries, fallback)
-    end
-
+local function build_index(pattern, suffixes)
+  local entries = {}
+  local ok, paths = pcall(wezterm.glob, pattern)
+  if not ok then
     return entries
-end
-
-local background_index = build_index(background_folder .. "/*", { ".png", ".jpg", ".jpeg", ".webp" }, bg_image)
-local music_index = build_index(music_folder .. "/*", { ".mp3", ".flac", ".wav", ".m4a" }, default_music)
-
--- ============================================================
--- RANDOM BACKGROUND
--- ============================================================
-
-local function choose_random_background()
-    if #background_index == 0 then
-        return bg_image
+  end
+  for _, path in ipairs(paths) do
+    if has_suffix(path, suffixes) and file_exists(path) then
+      table.insert(entries, path)
     end
-    return background_index[math.random(#background_index)]
+  end
+  return entries
 end
-
--- ============================================================
--- RANDOM MUSIC
--- ============================================================
-
-local function choose_random_music()
-    if #music_index == 0 then
-        return default_music
-    end
-    return music_index[math.random(#music_index)]
-end
-
--- ============================================================
--- MUSIC CONTROL
--- ============================================================
-
-local function stop_music(_window, _pane)
-    -- Tắt mọi mpv (kể cả từ cửa sổ cũ)
-    wezterm.background_child_process({ "pkill", "-f", "wezterm-music" })
-end
-
-local function play_music(file_path)
-    if not file_path then
-        wezterm.log_error("Music file not found")
-        return
-    end
-
-    stop_music()
-    wezterm.background_child_process({
-        "mpv",
-        "--title=wezterm-music",
-        "--no-video",
-        "--loop",
-        "--really-quiet",
-        file_path,
-    })
-    wezterm.log_info("Playing: " .. file_path)
-end
-
-local function play_random_music(_window, _pane)
-    local music = choose_random_music()
-    if music then
-        play_music(music)
-    else
-        wezterm.log_error("No music found")
-    end
-end
-
--- ============================================================
--- BACKGROUND CONFIG
--- ============================================================
-
-config.window_background_image = bg_image
-config.window_background_image_hsb = {
-    brightness = brightness,
-    hue = 1.0,
-    saturation = 0.8,
-}
-
-config.window_background_opacity = 0.30
-
--- ============================================================
--- WINDOW
--- ============================================================
 
 config.window_padding = { left = 0, right = 0, top = 0, bottom = 0 }
 config.window_decorations = "RESIZE"
 config.enable_tab_bar = false
-config.max_fps = 120
-
--- ============================================================
--- FONT + THEME
--- ============================================================
-
+config.max_fps = mode == "aesthetic" and 120 or 60
 config.color_scheme = "Tokyo Night"
-
-config.font = wezterm.font("JetBrainsMono Nerd Font", {
-    weight = "Medium",
+config.font = wezterm.font_with_fallback({
+  { family = "JetBrainsMono Nerd Font", weight = "Medium" },
+  "JetBrains Mono",
+  "Noto Sans Mono",
 })
-
 config.font_size = 22
 config.term = "xterm-256color"
-
--- ============================================================
--- TMUX
--- ============================================================
-
-local function find_cmd(cmd)
-    local ok, handle = pcall(io.popen, 'command -v ' .. cmd .. ' 2>/dev/null')
-    if not ok or handle == nil then
-        return nil
-    end
-    local path = handle:read("*a") or ""
-    handle:close()
-    path = path:gsub("%s+$", "")
-    if path == "" then
-        return nil
-    end
-    return path
-end
-
-local tmux_path = find_cmd("tmux")
-if tmux_path then
-    config.default_prog = { tmux_path, "new-session", "-A", "-s", "main" }
-else
-    -- Fall back to the user's shell if tmux isn't available in PATH
-    local shell = os.getenv("SHELL") or "/bin/sh"
-    config.default_prog = { shell, "-l" }
-    wezterm.log_info("tmux not found in PATH, falling back to shell: " .. shell)
-end
-
-local function tmux_binding(key)
-    return wezterm.action.SendString("\x01" .. key)
-end
-
--- ============================================================
--- KEYS
--- ============================================================
-
-config.keys = {
-    -- random background
-    {
-        key = "b", mods = "CTRL|SHIFT",
-        action = wezterm.action_callback(function(window)
-            local new_bg = choose_random_background()
-            if new_bg then
-                bg_image = new_bg
-                window:set_config_overrides({
-                    window_background_image = bg_image,
-                })
-                wezterm.log_info("New bg: " .. bg_image)
-            else
-                wezterm.log_error("Could not find bg image")
-            end
-        end),
-    },
-    -- brightness up
-    {
-        key = ">", mods = "CTRL|SHIFT",
-        action = wezterm.action_callback(function(window)
-            brightness = math.min(brightness + 0.01, 1.0)
-            window:set_config_overrides({
-                window_background_image_hsb = {
-                    brightness = brightness,
-                    hue = 1.0,
-                    saturation = 0.8,
-                },
-                window_background_image = bg_image,
-            })
-        end),
-    },
-    -- brightness down
-    {
-        key = "<", mods = "CTRL|SHIFT",
-        action = wezterm.action_callback(function(window)
-            brightness = math.max(brightness - 0.01, 0.01)
-            window:set_config_overrides({
-                window_background_image_hsb = {
-                    brightness = brightness,
-                    hue = 1.0,
-                    saturation = 0.8,
-                },
-                window_background_image = bg_image,
-            })
-        end),
-    },
-    -- open link
-    { key = "L", mods = "CTRL|SHIFT", action = act.OpenLinkAtMouseCursor },
-    -- music controls
-    { key = "F6", action = wezterm.action_callback(play_random_music) },
-    { key = "F7", action = wezterm.action_callback(stop_music) },
-    { key = "F8", action = wezterm.action_callback(function() wezterm.background_child_process({ "pactl", "set-sink-volume", "@DEFAULT_SINK@", "+5%" }) end) },
-    { key = "F9", action = wezterm.action_callback(function() wezterm.background_child_process({ "pactl", "set-sink-volume", "@DEFAULT_SINK@", "-5%" }) end) },
-    { key = "F10", action = wezterm.action_callback(function() play_music(default_music) end) },
-    -- tmux
-    { key = "h", mods = "ALT", action = tmux_binding("h") },
-    { key = "j", mods = "ALT", action = tmux_binding("j") },
-    { key = "k", mods = "ALT", action = tmux_binding("k") },
-    { key = "l", mods = "ALT", action = tmux_binding("l") },
-}
-
--- ============================================================
--- CURSOR
--- ============================================================
-
 config.default_cursor_style = "BlinkingUnderline"
 config.cursor_thickness = 2
 
--- ============================================================
--- EVENTS
--- ============================================================
+local tmux_path = find_command("tmux")
+if tmux_path then
+  config.default_prog = { tmux_path, "new-session", "-A", "-s", "main" }
+else
+  local shell = os.getenv("SHELL") or "/bin/sh"
+  config.default_prog = { shell, "-l" }
+  wezterm.log_info("tmux not found; falling back to " .. shell)
+end
 
--- Do not perform side-effects on config load. Respect MODE and opt-in env vars.
+local function tmux_binding(key)
+  return wezterm.action.SendString("\x01" .. key)
+end
+
+config.keys = {
+  { key = "L", mods = "CTRL|SHIFT", action = act.OpenLinkAtMouseCursor },
+  { key = "h", mods = "ALT", action = tmux_binding("h") },
+  { key = "j", mods = "ALT", action = tmux_binding("j") },
+  { key = "k", mods = "ALT", action = tmux_binding("k") },
+  { key = "l", mods = "ALT", action = tmux_binding("l") },
+}
+
+if mode == "aesthetic" then
+  if not root or root == "" then
+    wezterm.log_warn("aesthetic mode requires DOTFILES_ROOT to locate local assets")
+  else
+    math.randomseed(os.time())
+    math.random()
+    math.random()
+    math.random()
+
+    local brightness = 0.03
+    local background_folder = os.getenv("DOTFILES_WEZTERM_BG_DIR") or (root .. "/wezterm/bg")
+    local music_folder = os.getenv("DOTFILES_WEZTERM_MUSIC_DIR") or (root .. "/wezterm/sd")
+    local configured_background = os.getenv("DOTFILES_WEZTERM_BG")
+    local background_index = build_index(background_folder .. "/*", { ".png", ".jpg", ".jpeg", ".webp" })
+    local music_index = build_index(music_folder .. "/*", { ".mp3", ".flac", ".wav", ".m4a" })
+
+    if file_exists(configured_background) then
+      table.insert(background_index, 1, configured_background)
+    end
+
+    local function random_entry(entries)
+      if #entries == 0 then
+        return nil
+      end
+      return entries[math.random(#entries)]
+    end
+
+    local current_background = random_entry(background_index)
+    if current_background then
+      config.window_background_image = current_background
+      config.window_background_image_hsb = {
+        brightness = brightness,
+        hue = 1.0,
+        saturation = 0.8,
+      }
+      config.window_background_opacity = 0.30
+    end
+
+    local mpv_path = find_command("mpv")
+    local pkill_path = find_command("pkill")
+    local pactl_path = find_command("pactl")
+
+    local function stop_music()
+      if pkill_path then
+        wezterm.background_child_process({ pkill_path, "-f", "wezterm-music" })
+      end
+    end
+
+    local function play_music(path)
+      if not mpv_path or not file_exists(path) then
+        wezterm.log_warn("mpv or music file unavailable")
+        return
+      end
+      stop_music()
+      wezterm.background_child_process({
+        mpv_path,
+        "--title=wezterm-music",
+        "--no-video",
+        "--loop",
+        "--really-quiet",
+        path,
+      })
+    end
+
+    table.insert(config.keys, {
+      key = "B",
+      mods = "CTRL|SHIFT",
+      action = wezterm.action_callback(function(window)
+        local selected = random_entry(background_index)
+        if selected then
+          current_background = selected
+          window:set_config_overrides({ window_background_image = current_background })
+        end
+      end),
+    })
+
+    table.insert(config.keys, {
+      key = "UpArrow",
+      mods = "CTRL|SHIFT",
+      action = wezterm.action_callback(function(window)
+        brightness = math.min(brightness + 0.01, 1.0)
+        window:set_config_overrides({
+          window_background_image = current_background,
+          window_background_image_hsb = { brightness = brightness, hue = 1.0, saturation = 0.8 },
+        })
+      end),
+    })
+
+    table.insert(config.keys, {
+      key = "DownArrow",
+      mods = "CTRL|SHIFT",
+      action = wezterm.action_callback(function(window)
+        brightness = math.max(brightness - 0.01, 0.01)
+        window:set_config_overrides({
+          window_background_image = current_background,
+          window_background_image_hsb = { brightness = brightness, hue = 1.0, saturation = 0.8 },
+        })
+      end),
+    })
+
+    table.insert(config.keys, {
+      key = "M",
+      mods = "CTRL|SHIFT",
+      action = wezterm.action_callback(function()
+        play_music(random_entry(music_index))
+      end),
+    })
+    table.insert(config.keys, {
+      key = "X",
+      mods = "CTRL|SHIFT",
+      action = wezterm.action_callback(stop_music),
+    })
+
+    if pactl_path then
+      table.insert(config.keys, {
+        key = "+",
+        mods = "CTRL|SHIFT",
+        action = wezterm.action_callback(function()
+          wezterm.background_child_process({ pactl_path, "set-sink-volume", "@DEFAULT_SINK@", "+5%" })
+        end),
+      })
+      table.insert(config.keys, {
+        key = "-",
+        mods = "CTRL|SHIFT",
+        action = wezterm.action_callback(function()
+          wezterm.background_child_process({ pactl_path, "set-sink-volume", "@DEFAULT_SINK@", "-5%" })
+        end),
+      })
+    end
+  end
+end
+
 wezterm.on("gui-startup", function()
-    if MODE == "minimal" then
-        wezterm.log_info("WezTerm started in minimal mode; skipping aesthetics and side-effects")
-        return
-    end
-    if MODE == "normal" then
-        wezterm.log_info("WezTerm started in normal mode; aesthetics are disabled by default")
-        return
-    end
-    wezterm.log_info("WezTerm started in aesthetic mode; startup music is intentionally disabled")
+  wezterm.log_info("dotfiles WezTerm mode: " .. mode)
 end)
 
 return config
