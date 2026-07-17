@@ -3,7 +3,7 @@
   "root_env": "DOTFILES_ROOT",
   "profiles": {
     "minimal": {
-      "description": "Portable shell and Git baseline with no optional UI integrations"
+      "description": "Portable shell and Git baseline with manifest tooling"
     },
     "normal": {
       "description": "Daily terminal workflow with Zsh, tmux, Neovim, Git and jq"
@@ -15,7 +15,7 @@
   "apps": [
     { "name": "bash", "command": "bash", "minimum": "4.0", "required_in": ["minimal", "normal", "full"] },
     { "name": "git", "command": "git", "minimum": "2.40", "required_in": ["minimal", "normal", "full"] },
-    { "name": "jq", "command": "jq", "minimum": "1.6", "required_in": ["normal", "full"] },
+    { "name": "jq", "command": "jq", "minimum": "1.6", "required_in": ["minimal", "normal", "full"] },
     { "name": "zsh", "command": "zsh", "minimum": "5.8", "required_in": ["normal", "full"] },
     { "name": "tmux", "command": "tmux", "minimum": "3.2", "required_in": ["normal", "full"] },
     { "name": "nvim", "command": "nvim", "minimum": "0.11.3", "required_in": ["normal", "full"] },
@@ -43,6 +43,6 @@
     { "source": "git/.gitconfig", "target": "~/.gitconfig", "profiles": ["minimal", "normal", "full"] },
     { "source": "lazygit/config.yml", "target": "~/.config/lazygit/config.yml", "profiles": ["full"] },
     { "source": "scripts/open.sh", "target": "~/.local/bin/dotfiles-open", "profiles": ["minimal", "normal", "full"] },
-    { "source": "scripts/doctor.sh", "target": "~/.local/bin/dotfiles-doctor", "profiles": ["normal", "full"] }
+    { "source": "scripts/doctor.sh", "target": "~/.local/bin/dotfiles-doctor", "profiles": ["minimal", "normal", "full"] }
   ]
 }
