@@ -1,20 +1,28 @@
--- Linting bất đồng bộ khi vào buffer, lưu file hoặc rời insert
 return {
-  'mfussenegger/nvim-lint',
-  event = { 'BufReadPost', 'BufWritePost', 'InsertLeave' },
+  "mfussenegger/nvim-lint",
+  event = { "BufWritePost" },
+  keys = {
+    {
+      "<leader>xl",
+      function()
+        require("lint").try_lint()
+      end,
+      desc = "Lint current buffer",
+    },
+  },
   config = function()
-    local lint = require('lint')
+    local lint = require("lint")
     lint.linters_by_ft = {
-      lua = { 'luacheck' },
-      rust = { 'clippy' },
-      c = { 'clangtidy' },
-      cpp = { 'clangtidy' },
-      python = { 'pylint' },
-      -- Bổ sung các linter khác
+      lua = { "luacheck" },
+      rust = { "clippy" },
+      c = { "clangtidy" },
+      cpp = { "clangtidy" },
+      python = { "pylint" },
     }
-    -- Tự động chạy lint sau các sự kiện
-    vim.api.nvim_create_autocmd({ 'BufWritePost', 'InsertLeave', 'TextChanged' }, {
-      pattern = '*',
+
+    local group = vim.api.nvim_create_augroup("dotfiles-lint", { clear = true })
+    vim.api.nvim_create_autocmd("BufWritePost", {
+      group = group,
       callback = function()
         lint.try_lint()
       end,
