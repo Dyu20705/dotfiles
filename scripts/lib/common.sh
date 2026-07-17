@@ -188,6 +188,9 @@ first_version() {
   local command_name=$1
   local output
 
-  output=$("$command_name" --version 2>&1 | head -n 1 || true)
+  case "$command_name" in
+    tmux) output=$("$command_name" -V 2>&1 | head -n 1 || true) ;;
+    *) output=$("$command_name" --version 2>&1 | head -n 1 || true) ;;
+  esac
   printf '%s\n' "$output"
 }
