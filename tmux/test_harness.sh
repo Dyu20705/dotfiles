@@ -1,67 +1,46 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# test_harness.sh
-# Lightweight test harness to exercise isolated tmux sockets and report observability options.
-# By default this script runs in DRY_RUN mode (does not start tmux). Set RUN=1 to execute.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG="$SCRIPT_DIR/tmux.conf"
+SOCKET="${TMUX_TEST_SOCKET:-dotfiles-test-$$}"
+SESSION="${TMUX_TEST_SESSION:-smoke}"
 
-RUN=${RUN:-0}
-TMUX_LABEL=${TMUX_LABEL:-dotfiles_test}
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+command -v tmux >/dev/null 2>&1 || {
+  printf 'tmux is required\n' >&2
+  exit 1
+}
 
-echo "Test harness workspace: $ROOT"
+cleanup() {
+  tmux -L "$SOCKET" kill-server >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
-echo "Preparing temporary config in $TMPDIR"
-cp "$ROOT/tmux/tmux.conf" "$TMPDIR/tmux.conf" 2>/dev/null || true
-cp "$ROOT/tmux/base.conf" "$TMPDIR/base.conf" 2>/dev/null || true
-cp "$ROOT/tmux/workflow.conf" "$TMPDIR/workflow.conf" 2>/dev/null || true
-cp "$ROOT/tmux/session.conf" "$TMPDIR/session.conf" 2>/dev/null || true
-cp "$ROOT/tmux/ui.conf" "$TMPDIR/ui.conf" 2>/dev/null || true
-cp "$ROOT/tmux/plugins.conf" "$TMPDIR/plugins.conf" 2>/dev/null || true
-cp "$ROOT/tmux/observability.conf" "$TMPDIR/observability.conf" 2>/dev/null || true
+assert_equal() {
+  local expected=$1 actual=$2 label=$3
+  if [ "$expected" != "$actual" ]; then
+    printf 'FAIL: %s (expected %s, got %s)\n' "$label" "$expected" "$actual" >&2
+    exit 1
+  fi
+  printf 'PASS: %s\n' "$label"
+}
 
-# Ensure the copied top-level config references the TMPDIR versions (best-effort)
-cat > "$TMPDIR/tmux.conf" <<EOF
-run-shell -b '
-config_path="${TMPDIR}/tmux.conf"
-config_dir="${TMPDIR}"
-tmux set-option -gq @tmux_root "${TMPDIR}"
-# Source a minimal, isolated set
-tmux source-file "${TMPDIR}/base.conf"
-tmux source-file "${TMPDIR}/workflow.conf"
-tmux source-file "${TMPDIR}/session.conf"
-tmux source-file "${TMPDIR}/ui.conf"
-tmux source-file "${TMPDIR}/plugins.conf"
-# Observability
-tmux source-file "${TMPDIR}/observability.conf"
-'
-EOF
+tmux -L "$SOCKET" -f "$CONFIG" new-session -d -s "$SESSION" -c /tmp
+assert_equal C-a "$(tmux -L "$SOCKET" show-options -gv prefix)" 'prefix is C-a'
+assert_equal "$SCRIPT_DIR" "$(tmux -L "$SOCKET" show-options -gqv @tmux_root)" 'tmux root resolves from config'
 
-TMUX_CMD=(tmux -L "$TMUX_LABEL" -f "$TMPDIR/tmux.conf")
+tmux -L "$SOCKET" list-keys >/dev/null
+printf 'PASS: key table loads\n'
 
-if [ "$RUN" -ne 1 ]; then
-  echo "DRY RUN (no tmux actions). To run: RUN=1 $0"
-  echo "Planned actions:"
-  echo "  - Start tmux server on socket name: $TMUX_LABEL"
-  echo "  - Create detached session: harness_test"
-  echo "  - Query: @tmux_active_socket @tmux_config @tmux_config_hash @tmux_nested @tmux_nested_level"
-  exit 0
+tmux -L "$SOCKET" source-file "$CONFIG"
+assert_equal C-a "$(tmux -L "$SOCKET" show-options -gv prefix)" 'reload preserves prefix'
+
+if command -v jq >/dev/null 2>&1; then
+  jq -n \
+    --arg socket "$SOCKET" \
+    --arg session "$SESSION" \
+    --arg root "$SCRIPT_DIR" \
+    '{status:"ok",socket:$socket,session:$session,root:$root}'
+else
+  printf 'tmux smoke test complete\n'
 fi
-
-# Start server and create session
-echo "Starting tmux server (socket: $TMUX_LABEL)"
-"${TMUX_CMD[@]}" new-session -d -s harness_test -c /tmp || { echo "Failed to start session"; exit 2; }
-
-# Query observability keys
-for key in @tmux_active_socket @tmux_config @tmux_config_hash @tmux_nested @tmux_nested_level @tmux_session_name @tmux_session_windows @tmux_client_pid @tmux_client_tty; do
-  val=$("${TMUX_CMD[@]}" show-options -gqv "$key" 2>/dev/null || true)
-  printf "%-24s: %s\n" "$key" "${val:-<unset>}"
-done
-
-# Clean up
-echo "Killing test server"
-"${TMUX_CMD[@]}" kill-server || true
-
-echo "Done"
