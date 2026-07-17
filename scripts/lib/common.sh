@@ -41,11 +41,14 @@ xdg_state_home() {
 }
 
 expand_home() {
-  case "$1" in
-    '~') printf '%s\n' "$HOME" ;;
-    '~/'*) printf '%s/%s\n' "$HOME" "${1#\~/}" ;;
-    *) printf '%s\n' "$1" ;;
-  esac
+  local value=$1
+  if [ "$value" = "~" ]; then
+    printf '%s\n' "$HOME"
+  elif [ "${value:0:2}" = "~/" ]; then
+    printf '%s/%s\n' "$HOME" "${value:2}"
+  else
+    printf '%s\n' "$value"
+  fi
 }
 
 portable_timeout() {
@@ -69,7 +72,7 @@ backup_path() {
 
   state_home=$(xdg_state_home)
   timestamp=$(date +%Y%m%d-%H%M%S)
-  relative=${target#$HOME/}
+  relative=${target#"$HOME"/}
   backup_root="$state_home/dotfiles/backups/$timestamp"
   mkdir -p "$backup_root/$(dirname "$relative")"
   mv "$target" "$backup_root/$relative"
