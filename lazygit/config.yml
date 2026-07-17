@@ -40,7 +40,7 @@ gui:
 
 git:
   autoFetch: false
-  autoRefresh: false
+  autoRefresh: true
   autoForwardBranches: onlyMainBranches
   fetchAll: true
   overrideGpg: false
@@ -62,9 +62,9 @@ git:
 
 os:
   editPreset: nvim
-  editInTerminal: false
-  open: 'xdg-open "{{filename}}" >/dev/null'
-  openLink: 'xdg-open "{{link}}" >/dev/null'
+  editInTerminal: true
+  open: 'dotfiles-open "{{filename}}" >/dev/null 2>&1'
+  openLink: 'dotfiles-open "{{link}}" >/dev/null 2>&1'
 
 update:
   method: never
