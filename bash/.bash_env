@@ -2,27 +2,27 @@
 # Keep this POSIX-compatible so .profile can source it.
 
 dotfiles_path_prepend() {
-    case ":$PATH:" in
-        *":$1:"*) ;;
-        *) PATH="$1${PATH:+:$PATH}"; export PATH ;;
-    esac
+  [ -d "$1" ] || return 0
+  case ":$PATH:" in
+    *":$1:"*) ;;
+    *) PATH="$1${PATH:+:$PATH}"; export PATH ;;
+  esac
 }
 
 dotfiles_path_append() {
-    case ":$PATH:" in
-        *":$1:"*) ;;
-        *) PATH="${PATH:+$PATH:}$1"; export PATH ;;
-    esac
+  [ -d "$1" ] || return 0
+  case ":$PATH:" in
+    *":$1:"*) ;;
+    *) PATH="${PATH:+$PATH:}$1"; export PATH ;;
+  esac
 }
 
 : "${DOTFILES_SHELL_MODE:=normal}"
 : "${EDITOR:=nvim}"
 : "${VISUAL:=nvim}"
 : "${LESS:=-R}"
-: "${LANG:=en_US.UTF-8}"
-: "${LC_ALL:=en_US.UTF-8}"
 
-export DOTFILES_SHELL_MODE EDITOR VISUAL LESS LANG LC_ALL
+export DOTFILES_SHELL_MODE EDITOR VISUAL LESS
 
 dotfiles_path_prepend "$HOME/.local/bin"
 dotfiles_path_prepend "$HOME/.cargo/bin"
@@ -30,3 +30,10 @@ dotfiles_path_prepend "$HOME/.npm-global/bin"
 dotfiles_path_prepend "$HOME/.npm/bin"
 dotfiles_path_prepend "$HOME/.fnm/bin"
 dotfiles_path_prepend "/usr/local/go/bin"
+
+# Only choose en_US.UTF-8 when the locale exists. Otherwise preserve the host default.
+if command -v locale >/dev/null 2>&1 && locale -a 2>/dev/null | grep -qi '^en_US\.utf-\?8$'; then
+  : "${LANG:=en_US.UTF-8}"
+  : "${LC_ALL:=en_US.UTF-8}"
+  export LANG LC_ALL
+fi
