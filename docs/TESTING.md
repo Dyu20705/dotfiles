@@ -6,6 +6,7 @@
 bash scripts/test.sh --profile static
 bash scripts/test.sh --profile runtime
 bash scripts/test.sh --profile full
+bash scripts/check-wezterm.sh
 ```
 
 Static checks cover:
@@ -28,6 +29,9 @@ Runtime checks create temporary homes and isolated processes where possible:
 - machine-local tmux overrides applied after canonical layers.
 - Neovim headless core config load with network bootstrap disabled.
 - WezTerm config parsing through `show-keys` when installed.
+- Deterministic background selection, persisted reload state and missing assets.
+- Scoped repeated play/stop with fake `mpv`, plus fake `wpctl`/`pactl` fallback.
+- Proof that config evaluation starts no media or volume process.
 - Git config parsing in a temporary home and repository.
 
 A skipped optional application is not proof that its runtime behavior works. Record
@@ -50,8 +54,17 @@ Run these after changes affecting terminal behavior:
 11. Detach, attach and reload tmux without errors.
 12. Repeat in SSH and with optional tools removed from `PATH`.
 13. On macOS, verify clipboard and `dotfiles-open` behavior.
-14. Exercise aesthetic-mode background and media controls only when their assets
-    and external commands are intentionally installed.
+14. In normal mode, verify the selected background survives `Ctrl+Shift+R`.
+15. Use `Ctrl+Shift+B` and `Ctrl+Shift+Up/Down` repeatedly; verify background
+    selection and brightness survive another reload.
+16. Use `Ctrl+Shift+F6` to play/change music, `Ctrl+Shift+F7` to stop,
+    `Ctrl+Shift+F8/F9` for volume and `Ctrl+Shift+F10` for the default track.
+17. In aesthetic mode, repeat the media checks with legacy F6–F10 aliases.
+18. While music is playing, reload the config, change tracks twice and stop it;
+    verify only one owned player exists using the PID file under
+    `${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-~/.local/state}/dotfiles/wezterm/runtime}`.
+19. Stop music, close and reopen WezTerm, and verify no uncontrolled player is
+    left behind. Repeat the visual/playback checks on Wayland and X11.
 
 Never copy real clipboard contents, tokens, private paths or repository data into
 public test logs or GitHub Actions artifacts.

@@ -43,6 +43,7 @@
     { "source": "git/.gitconfig", "target": "~/.gitconfig", "profiles": ["minimal", "normal", "full"] },
     { "source": "lazygit/config.yml", "target": "~/.config/lazygit/config.yml", "profiles": ["full"] },
     { "source": "scripts/open.sh", "target": "~/.local/bin/dotfiles-open", "profiles": ["minimal", "normal", "full"] },
+    { "source": "scripts/wezterm-media.sh", "target": "~/.local/bin/dotfiles-wezterm-media", "profiles": ["full"] },
     { "source": "scripts/doctor.sh", "target": "~/.local/bin/dotfiles-doctor", "profiles": ["minimal", "normal", "full"] }
   ]
 }

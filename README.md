@@ -71,6 +71,7 @@ bash scripts/doctor.sh --profile normal --json | jq
 bash scripts/test.sh --profile static
 bash scripts/test.sh --profile runtime
 bash scripts/test.sh --profile full
+bash scripts/check-wezterm.sh
 ```
 
 Runtime tests use isolated temporary homes and a dedicated tmux socket. Missing
@@ -90,12 +91,14 @@ inside tmux remains normal because tmux is the primary local workflow.
 `DOTFILES_WEZTERM_MODE` accepts:
 
 - `minimal`: terminal and tmux only.
-- `normal`: safe default with no media or background integrations.
-- `aesthetic`: opt-in local backgrounds and music controls.
+- `normal`: deterministic local background plus manual, modified media controls.
+- `aesthetic`: normal behavior plus legacy F6–F10 media aliases and higher FPS.
 
-Aesthetic mode requires `DOTFILES_ROOT` so local assets can be found. Optional
-asset paths can be overridden with `DOTFILES_WEZTERM_BG_DIR`,
-`DOTFILES_WEZTERM_MUSIC_DIR` and `DOTFILES_WEZTERM_BG`.
+Assets resolve from the active config checkout without assuming `~/dotfiles`.
+Override them with `DOTFILES_WEZTERM_BG_DIR`, `DOTFILES_WEZTERM_MUSIC_DIR`,
+`DOTFILES_WEZTERM_BG` and `DOTFILES_WEZTERM_DEFAULT_TRACK`. Background selection
+and brightness persist under `${XDG_STATE_HOME:-~/.local/state}/dotfiles/wezterm`.
+No mode autoplays music.
 
 ## Core keymaps
 

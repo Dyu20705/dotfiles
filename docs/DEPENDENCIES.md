@@ -23,7 +23,7 @@ The machine-readable source of truth is `config/workflow.json`. Run
 | Clipboard | `wl-paste`, `xclip`, `pbpaste`, PowerShell on WSL |
 | Neovim formatting | `stylua`, `rustfmt`, `clang-format`, `black` |
 | Neovim linting | `luacheck`, `clippy`, `clang-tidy`, `pylint` |
-| WezTerm aesthetics | `mpv`, `pkill`, `pactl`, local image/audio files |
+| WezTerm aesthetics | `mpv`, `wpctl` (preferred) or `pactl`, local image/audio files |
 | Containers | Docker Engine and Docker Compose v2 |
 | Validation | `shellcheck`, `yamllint`, Lua compiler |
 

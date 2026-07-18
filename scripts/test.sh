@@ -328,14 +328,6 @@ check_keymap_contract() {
     return 1
   fi
 
-  if grep -qE \
-    'key[[:space:]]*=[[:space:]]*"F(5|6|7|8|9|10|11|12)"[^\n]*mods[[:space:]]*=[[:space:]]*""' \
-    "$DOTFILES_ROOT/wezterm/.wezterm.lua"
-  then
-    printf 'WezTerm contains an unmodified application function-key binding\n' >&2
-    return 1
-  fi
-
   nvim_navigator_count=$(grep -Rhl 'christoomey/vim-tmux-navigator' \
     "$DOTFILES_ROOT/nvim/.config/nvim/lua/plugins" 2>/dev/null | wc -l | tr -d ' ')
   tmux_navigator_count=$(grep -Fhc "set -g @plugin 'christoomey/vim-tmux-navigator'" \
@@ -565,6 +557,8 @@ run_static() {
   run_check "Docker Compose config" check_compose
   run_check "No personal hard-coded paths" check_hardcoded_paths
   run_check "Critical keymap contract" check_keymap_contract
+  run_check "WezTerm background and media contract" \
+    bash "$DOTFILES_ROOT/scripts/check-wezterm.sh"
   run_check "Git merge tool contract" check_git_tool_contract
   run_check "Clipboard streaming contract" check_clipboard_pipeline
 }

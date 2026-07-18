@@ -79,18 +79,27 @@ Bootstrap links `scripts/open.sh` to `~/.local/bin/dotfiles-open`. Confirm that
 dotfiles-open .
 ```
 
-## WezTerm aesthetic mode has no background
+## WezTerm has no background or media controls
 
-Aesthetic features are opt-in and require the repository root in the GUI
-environment:
+Normal mode selects the first readable supported background deterministically.
+Check the isolated fixtures first:
 
 ```bash
-export DOTFILES_ROOT=/absolute/path/to/dotfiles
-export DOTFILES_WEZTERM_MODE=aesthetic
+bash scripts/check-wezterm.sh
+```
+
+Then set machine-local overrides if assets live elsewhere:
+
+```bash
+export DOTFILES_WEZTERM_BG_DIR=/path/to/backgrounds
+export DOTFILES_WEZTERM_MUSIC_DIR=/path/to/music
+export DOTFILES_WEZTERM_DEFAULT_TRACK=/path/to/music/default.mp3
 wezterm
 ```
 
-Normal and minimal modes intentionally avoid media commands and asset scans.
+Supported backgrounds are PNG, JPEG and WebP. Music requires `mpv`; volume uses
+`wpctl` when present and otherwise `pactl`. Minimal mode intentionally performs
+no asset discovery and provides no media actions.
 
 ## Git asks for identity
 
