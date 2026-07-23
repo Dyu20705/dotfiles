@@ -50,6 +50,11 @@ jobs:
         run: |
           set -o pipefail
           bash scripts/check-nvim-contract.sh 2>&1 | tee -a "$RUNNER_TEMP/static.log"
+      - name: Run tmux integration contract checks
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/check-tmux-contract.sh 2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Upload static validation log
         if: always()
         uses: actions/upload-artifact@v4
