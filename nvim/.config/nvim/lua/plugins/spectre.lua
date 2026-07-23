@@ -1,21 +1,25 @@
--- Tìm kiếm và thay thế toàn dự án với giao diện sống động, xem trước
+local capabilities = require("config.capabilities")
+if not capabilities.enabled("project_replace") then
+  return {}
+end
+
 return {
-  'nvim-pack/nvim-spectre',
-  dependencies = { 'nvim-lua/plenary.nvim' },
-  cmd = 'Spectre',
+  "nvim-pack/nvim-spectre",
+  dependencies = { "nvim-lua/plenary.nvim" },
+  cmd = "Spectre",
   keys = {
-    { '<leader>S', '<cmd>Spectre<CR>', desc = 'Mở Spectre tìm/thay thế' },
-    { '<leader>sw', function() require('spectre').open_visual({ select_word = true }) end, desc = 'Tìm từ dưới con trỏ' },
+    { "<leader>S", "<cmd>Spectre<cr>", desc = "Project search and replace" },
+    {
+      "<leader>sw",
+      function()
+        require("spectre").open_visual({ select_word = true })
+      end,
+      desc = "Search current word",
+    },
   },
   opts = {
-    open_cmd = 'vnew',
+    open_cmd = "vnew",
     live_update = true,
     is_block_ui_break = true,
-    mapping = {
-      ['toggle_line'] = { map = 'dd', cmd = "<cmd>lua require('spectre').toggle_line()<CR>" },
-      ['enter_file']  = { map = '<CR>', cmd = "<cmd>lua require('spectre.actions').select_entry()<CR>" },
-      ['send_to_qf']  = { map = '<leader>q', cmd = "<cmd>lua require('spectre.actions').send_to_qf()<CR>" },
-      ['replace_cmd'] = { map = '<leader>rc', cmd = "<cmd>lua require('spectre.actions').replace_cmd()<CR>" },
-    },
   },
 }

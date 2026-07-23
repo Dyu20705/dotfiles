@@ -27,7 +27,11 @@ if vim.fn.has("nvim-0.11.3") == 0 then
   return
 end
 
-local core_modules = { "vim-options", "debug-commands" }
+local core_modules = {
+  "vim-options",
+  "debug-commands",
+  "capability-commands",
+}
 for _, module_name in ipairs(core_modules) do
   local ok, error_message = pcall(require, module_name)
   if not ok then

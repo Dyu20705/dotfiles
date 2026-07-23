@@ -102,7 +102,7 @@ local function build_index(directory, suffixes)
   for _, path in ipairs(paths) do
     if not seen[path] and valid_asset(path, suffixes) then
       seen[path] = true
-      table.insert(entries, path)
+      entries[#entries + 1] = path
     end
   end
   table.sort(entries)
@@ -133,16 +133,8 @@ else
   wezterm.log_info("tmux not found; falling back to the configured shell")
 end
 
-local function tmux_binding(key)
-  return wezterm.action.SendString("\x01" .. key)
-end
-
 config.keys = {
   { key = "L", mods = "CTRL|SHIFT", action = act.OpenLinkAtMouseCursor },
-  { key = "h", mods = "ALT", action = tmux_binding("h") },
-  { key = "j", mods = "ALT", action = tmux_binding("j") },
-  { key = "k", mods = "ALT", action = tmux_binding("k") },
-  { key = "l", mods = "ALT", action = tmux_binding("l") },
 }
 
 if mode ~= "minimal" then
@@ -207,7 +199,12 @@ if mode ~= "minimal" then
     end
   end
 
-  local warning_shown = { controller = false, mpv = false, music = false, volume = false }
+  local warning_shown = {
+    controller = false,
+    mpv = false,
+    music = false,
+    volume = false,
+  }
 
   local function warn_once(window, kind, message)
     if warning_shown[kind] then
@@ -364,20 +361,7 @@ if mode ~= "minimal" then
   }
 
   for _, binding in ipairs(media_bindings) do
-    table.insert(config.keys, binding)
-  end
-
-  if mode == "aesthetic" then
-    local legacy_actions = {
-      F6 = media_bindings[4].action,
-      F7 = media_bindings[5].action,
-      F8 = media_bindings[6].action,
-      F9 = media_bindings[7].action,
-      F10 = media_bindings[8].action,
-    }
-    for key, action in pairs(legacy_actions) do
-      table.insert(config.keys, { key = key, mods = "NONE", action = action })
-    end
+    config.keys[#config.keys + 1] = binding
   end
 end
 

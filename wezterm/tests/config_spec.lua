@@ -6,7 +6,7 @@ local calls = { background = {}, run = {}, toasts = {}, warnings = {} }
 local function split(value)
   local items = {}
   for item in (value or ""):gmatch("[^;]+") do
-    table.insert(items, item)
+    items[#items + 1] = item
   end
   return items
 end
@@ -39,11 +39,11 @@ function wezterm.action_callback(callback)
 end
 
 function wezterm.background_child_process(arguments)
-  table.insert(calls.background, arguments)
+  calls.background[#calls.background + 1] = arguments
 end
 
 function wezterm.run_child_process(arguments)
-  table.insert(calls.run, arguments)
+  calls.run[#calls.run + 1] = arguments
   if arguments[2] == "check" and arguments[3] == "mpv" then
     return os.getenv("WEZTERM_TEST_MPV") == "1", "", ""
   end
@@ -54,7 +54,7 @@ function wezterm.run_child_process(arguments)
 end
 
 function wezterm.log_warn(message)
-  table.insert(calls.warnings, message)
+  calls.warnings[#calls.warnings + 1] = message
 end
 
 function wezterm.log_info(_message) end
@@ -78,16 +78,16 @@ local function binding(key, mods)
   return nil
 end
 
-assert(binding("F5", "NONE") == nil, "WezTerm steals the Neovim F5 key")
-assert(binding("F11", "NONE") == nil, "WezTerm steals the Neovim F11 key")
-assert(binding("F12", "NONE") == nil, "WezTerm steals the Neovim F12 key")
+for _, key in ipairs({ "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" }) do
+  assert(binding(key, "NONE") == nil, "WezTerm steals unmodified " .. key)
+end
 
 local window = { overrides = nil }
 function window:set_config_overrides(overrides)
   self.overrides = overrides
 end
 function window:toast_notification(_title, message, _url, _timeout)
-  table.insert(calls.toasts, message)
+  calls.toasts[#calls.toasts + 1] = message
 end
 
 if scenario == "minimal" then
@@ -97,10 +97,10 @@ elseif scenario == "normal" then
   assert(config.window_background_image == assert(os.getenv("WEZTERM_TEST_EXPECTED_BG")))
   assert(config.window_background_image_hsb.brightness == 0.03)
   assert(binding("F10", "CTRL|SHIFT"), "normal mode is missing the default-track key")
-  assert(binding("F10", "NONE") == nil, "normal mode steals the Neovim F10 key")
 elseif scenario == "aesthetic" then
-  assert(binding("F6", "NONE"), "aesthetic mode is missing legacy F6")
-  assert(binding("F10", "NONE"), "aesthetic mode is missing legacy F10")
+  assert(binding("F6", "CTRL|SHIFT"), "aesthetic mode is missing modified media keys")
+  assert(binding("F10", "CTRL|SHIFT"), "aesthetic mode is missing modified media keys")
+  assert(config.max_fps == 120, "aesthetic mode did not enable its visual profile")
 elseif scenario == "reload" then
   assert(config.window_background_image == assert(os.getenv("WEZTERM_TEST_EXPECTED_BG")))
   assert(config.window_background_image_hsb.brightness == 0.42)

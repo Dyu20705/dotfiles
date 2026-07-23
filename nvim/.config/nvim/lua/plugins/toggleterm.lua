@@ -1,8 +1,12 @@
+local capabilities = require("config.capabilities")
+if not capabilities.enabled("terminal") then
+  return {}
+end
+
 return {
   "akinsho/toggleterm.nvim",
   version = "*",
   keys = {
-    { "<C-\\>", "<cmd>ToggleTerm<CR>", desc = "Toggle terminal" },
     { "<leader>ot", "<cmd>ToggleTerm<CR>", desc = "Toggle terminal" },
     { "<leader>of", "<cmd>ToggleTerm direction=float<CR>", desc = "Open floating terminal" },
     { "<leader>oh", "<cmd>ToggleTerm direction=horizontal<CR>", desc = "Open horizontal terminal" },

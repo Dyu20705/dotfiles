@@ -1,19 +1,35 @@
--- Giao diện tập trung cho diagnostics, quickfix, location list
 return {
-  'folke/trouble.nvim',
-  dependencies = { 'nvim-tree/nvim-web-devicons' },
-  cmd = { 'Trouble', 'TroubleToggle' },
+  "folke/trouble.nvim",
+  dependencies = { "nvim-tree/nvim-web-devicons" },
+  cmd = "Trouble",
   keys = {
-    { '<leader>xx', '<cmd>Trouble diagnostics toggle<CR>',  desc = 'Bật/tắt danh sách lỗi' },
-    { '<leader>xw', '<cmd>Trouble diagnostics workspace<CR>',desc = 'Lỗi toàn workspace' },
-    { '<leader>xd', '<cmd>Trouble diagnostics document<CR>', desc = 'Lỗi file hiện tại' },
-    { '<leader>xq', '<cmd>Trouble quickfix<CR>',             desc = 'Danh sách quickfix' },
-    { '<leader>xl', '<cmd>Trouble loclist<CR>',              desc = 'Danh sách location' },
+    {
+      "<leader>xx",
+      "<cmd>Trouble diagnostics toggle<cr>",
+      desc = "Workspace diagnostics",
+    },
+    {
+      "<leader>xX",
+      "<cmd>Trouble diagnostics toggle filter.buf=0<cr>",
+      desc = "Buffer diagnostics",
+    },
+    {
+      "<leader>xq",
+      "<cmd>Trouble qflist toggle<cr>",
+      desc = "Quickfix list",
+    },
+    {
+      "<leader>xl",
+      "<cmd>Trouble loclist toggle<cr>",
+      desc = "Location list",
+    },
   },
   opts = {
     auto_close = true,
     auto_preview = true,
-    position = 'bottom',
-    height = 10,
+    win = {
+      position = "bottom",
+      size = 10,
+    },
   },
 }
