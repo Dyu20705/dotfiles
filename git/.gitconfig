@@ -64,3 +64,6 @@
 	lg = log --graph --decorate --oneline --date=relative --all
 	last = log -1 --stat
 	unstage = restore --staged
+[user]
+	name = Dyu20705
+	email = duy28092005yh@gmail.com

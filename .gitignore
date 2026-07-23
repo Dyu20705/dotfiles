@@ -75,3 +75,4 @@ node_modules/
 bench/
 tmux/tmux_Ringing.mp3
 wezterm/sd/
+.ua/
