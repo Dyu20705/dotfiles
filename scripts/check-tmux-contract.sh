@@ -16,7 +16,7 @@ trap cleanup EXIT
 mkdir -p "$tmp/bin"
 
 cat > "$tmp/bin/tmux" <<'EOF'
-#!/usr/bin/env bash
+#!/bin/bash
 case "${1:-}" in
   load-buffer)
     [ "${2:-}" = - ] || exit 2
@@ -32,7 +32,7 @@ esac
 EOF
 
 cat > "$tmp/bin/wl-paste" <<'EOF'
-#!/usr/bin/env bash
+#!/bin/bash
 printf 'wl\n' >> "$DOTFILES_PROVIDER_LOG"
 if [ "${1:-}" = "--no-newline" ]; then
   printf 'wayland'
@@ -42,7 +42,7 @@ fi
 EOF
 
 cat > "$tmp/bin/xclip" <<'EOF'
-#!/usr/bin/env bash
+#!/bin/bash
 printf 'x11\n' >> "$DOTFILES_PROVIDER_LOG"
 printf 'x11\n\n'
 EOF

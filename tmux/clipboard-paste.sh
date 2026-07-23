@@ -11,14 +11,22 @@ run_with_timeout() {
   fi
 }
 
+# A remote host does not own the desktop clipboard. Leave paste handling to the
+# local terminal (for example Shift+Insert) rather than probing remote GUI tools.
+if [ -n "${SSH_CONNECTION:-}" ] || [ -n "${SSH_TTY:-}" ]; then
+  exit 0
+fi
+
 provider=""
-if command -v wl-paste >/dev/null 2>&1; then
+if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-paste >/dev/null 2>&1; then
   provider=wayland
-elif command -v xclip >/dev/null 2>&1; then
+elif [ -n "${DISPLAY:-}" ] && command -v xclip >/dev/null 2>&1; then
   provider=x11
-elif command -v pbpaste >/dev/null 2>&1; then
+elif [ "$(uname -s 2>/dev/null || true)" = Darwin ] \
+  && command -v pbpaste >/dev/null 2>&1; then
   provider=macos
-elif command -v powershell.exe >/dev/null 2>&1; then
+elif [ -n "${WSL_DISTRO_NAME:-}" ] \
+  && command -v powershell.exe >/dev/null 2>&1; then
   provider=wsl
 else
   exit 0
@@ -27,7 +35,7 @@ fi
 read_clipboard() {
   case "$provider" in
     wayland)
-      run_with_timeout wl-paste --no-newline 2>/dev/null
+      run_with_timeout wl-paste 2>/dev/null
       ;;
     x11)
       run_with_timeout xclip -o -selection clipboard 2>/dev/null
