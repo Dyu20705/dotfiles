@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage: wezterm-media.sh <command> [argument]
 
 Commands:
@@ -11,7 +11,7 @@ Commands:
   stop                    Stop only the owned player
   volume up|down          Change the default sink volume
   state-set NAME VALUE    Persist background or brightness state
-EOF
+USAGE
 }
 
 die() {
@@ -98,7 +98,7 @@ stop_owned_player() {
   IFS= read -r pid < "$pid_file" || pid=
   if owned_pid "$pid"; then
     kill "$pid" 2>/dev/null || true
-    for attempt in {1..20}; do
+    for ((attempt = 0; attempt < 20; attempt++)); do
       if ! kill -0 "$pid" 2>/dev/null; then
         break
       fi
@@ -140,7 +140,9 @@ check_capability() {
 play_track() {
   local track=${1:-} mpv_path player_pid
   [ -n "$track" ] || die "play requires a track"
-  [ -f "$track" ] && [ -r "$track" ] || die "track is not readable"
+  if [ ! -f "$track" ] || [ ! -r "$track" ]; then
+    die "track is not readable"
+  fi
   supported_track "$track" || die "unsupported track format"
   mpv_path=$(command -v mpv) || die "mpv is unavailable"
 
@@ -195,7 +197,9 @@ state_set() {
   local name=${1:-} value=${2:-}
   case "$name" in
     background)
-      [ -f "$value" ] && [ -r "$value" ] || die "background is not readable"
+      if [ ! -f "$value" ] || [ ! -r "$value" ]; then
+        die "background is not readable"
+      fi
       supported_background "$value" || die "unsupported background format"
       ;;
     brightness)

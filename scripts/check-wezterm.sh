@@ -88,7 +88,7 @@ env "${common_env[@]}" DOTFILES_WEZTERM_MODE=normal \
   WEZTERM_TEST_EXPECTED_BG="$tmp/backgrounds/b-second.jpg" \
   lua "$SPEC" "$CONFIG" reload
 
-cat > "$tmp/bin/mpv" <<'EOF'
+cat > "$tmp/bin/mpv" <<'MPV'
 #!/bin/bash
 printf '%s\n' "$*" >> "$DOTFILES_WEZTERM_TEST_LOG"
 child=
@@ -98,7 +98,7 @@ while :; do
   child=$!
   wait "$child" || true
 done
-EOF
+MPV
 chmod +x "$tmp/bin/mpv"
 
 controller_env=(
@@ -123,12 +123,18 @@ PATH="$tmp/bin:/usr/bin:/bin" env "${controller_env[@]}" \
 pid_two=$(<"$tmp/runtime/dotfiles/wezterm/mpv.pid")
 owned_pids+=("$pid_two")
 [ "$pid_one" != "$pid_two" ]
-! kill -0 "$pid_one" 2>/dev/null
+if kill -0 "$pid_one" 2>/dev/null; then
+  printf 'check-wezterm: previous owned player is still running\n' >&2
+  exit 1
+fi
 kill -0 "$pid_two"
 
 PATH="$tmp/bin:/usr/bin:/bin" env "${controller_env[@]}" \
   bash "$CONTROLLER" stop
-! kill -0 "$pid_two" 2>/dev/null
+if kill -0 "$pid_two" 2>/dev/null; then
+  printf 'check-wezterm: owned player survived stop\n' >&2
+  exit 1
+fi
 
 /bin/sleep 30 &
 unrelated_pid=$!
@@ -140,14 +146,14 @@ PATH="$tmp/bin:/usr/bin:/bin" env "${controller_env[@]}" \
 kill -0 "$unrelated_pid"
 kill "$unrelated_pid"
 
-cat > "$tmp/bin/wpctl" <<'EOF'
+cat > "$tmp/bin/wpctl" <<'WPCTL'
 #!/bin/bash
 printf 'wpctl %s\n' "$*" >> "$DOTFILES_WEZTERM_TEST_LOG"
-EOF
-cat > "$tmp/bin/pactl" <<'EOF'
+WPCTL
+cat > "$tmp/bin/pactl" <<'PACTL'
 #!/bin/bash
 printf 'pactl %s\n' "$*" >> "$DOTFILES_WEZTERM_TEST_LOG"
-EOF
+PACTL
 chmod +x "$tmp/bin/wpctl" "$tmp/bin/pactl"
 
 PATH="$tmp/bin" /usr/bin/env "${controller_env[@]}" \
