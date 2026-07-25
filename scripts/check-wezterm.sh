@@ -22,7 +22,8 @@ trap cleanup EXIT
 
 mkdir -p \
   "$tmp/home" "$tmp/state" "$tmp/cache" "$tmp/data" "$tmp/runtime" \
-  "$tmp/backgrounds" "$tmp/music" "$tmp/bin"
+  "$tmp/backgrounds" "$tmp/music" "$tmp/bin" \
+  "$tmp/home/dotfiles/wezterm/bg" "$tmp/home/dotfiles/wezterm/sd"
 
 touch \
   "$tmp/backgrounds/a-default.png" \
@@ -30,7 +31,10 @@ touch \
   "$tmp/backgrounds/c-third.jpeg" \
   "$tmp/backgrounds/d-fourth.webp" \
   "$tmp/music/a-default.mp3" \
-  "$tmp/music/b-second.flac"
+  "$tmp/music/b-second.flac" \
+  "$tmp/home/dotfiles/wezterm/bg/a-discovered.png" \
+  "$tmp/home/dotfiles/wezterm/sd/a-discovered.mp3"
+ln -s "$CONFIG" "$tmp/home/dotfiles/wezterm/.wezterm.lua"
 
 lua_parser=
 if command -v luac5.4 >/dev/null 2>&1; then
@@ -57,6 +61,7 @@ common_env=(
   DOTFILES_WEZTERM_MUSIC_DIR="$tmp/music"
   DOTFILES_WEZTERM_MEDIA_CONTROLLER="$CONTROLLER"
   WEZTERM_TEST_CONFIG_DIR="$DOTFILES_ROOT/wezterm"
+  WEZTERM_TEST_CONFIG_FILE="$CONFIG"
   WEZTERM_TEST_GLOB="$glob"
   WEZTERM_TEST_BG_PREFIX="$tmp/backgrounds/"
 )
@@ -79,6 +84,26 @@ env "${common_env[@]}" DOTFILES_WEZTERM_MODE=normal \
 env "${common_env[@]}" DOTFILES_WEZTERM_MODE=normal \
   WEZTERM_TEST_MPV=1 WEZTERM_TEST_VOLUME=1 \
   lua "$SPEC" "$CONFIG" callbacks
+
+rootless_bg="$tmp/home/dotfiles/wezterm/bg/a-discovered.png"
+rootless_track="$tmp/home/dotfiles/wezterm/sd/a-discovered.mp3"
+rootless_glob="$rootless_track;$rootless_bg"
+env -u DOTFILES_ROOT \
+  HOME="$tmp/home" \
+  XDG_CONFIG_HOME="$tmp/config" \
+  XDG_STATE_HOME="$tmp/state" \
+  XDG_CACHE_HOME="$tmp/cache" \
+  XDG_DATA_HOME="$tmp/data" \
+  XDG_RUNTIME_DIR="$tmp/runtime" \
+  DOTFILES_WEZTERM_MODE=normal \
+  DOTFILES_WEZTERM_MEDIA_CONTROLLER="$CONTROLLER" \
+  WEZTERM_TEST_CONFIG_DIR="$tmp/home" \
+  WEZTERM_TEST_CONFIG_FILE="$tmp/home/.wezterm.lua" \
+  WEZTERM_TEST_GLOB="$rootless_glob" \
+  WEZTERM_TEST_EXPECTED_BG="$rootless_bg" \
+  WEZTERM_TEST_EXPECTED_TRACK="$rootless_track" \
+  WEZTERM_TEST_MPV=1 \
+  lua "$SPEC" "$CONFIG" discovered-root
 
 mkdir -p "$tmp/state/dotfiles/wezterm"
 printf '%s\n' "$tmp/backgrounds/b-second.jpg" \
