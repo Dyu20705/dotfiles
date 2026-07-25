@@ -14,8 +14,6 @@
 
 set +e
 
-OS="$(uname)"
-
 STATE_FILE="$HOME/.cache/pomo.json"
 mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null
 
