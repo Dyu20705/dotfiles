@@ -32,17 +32,8 @@ jobs:
           find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
       - name: Tmux tests
         run: |
-          set -o pipefail
-          {
-            bash tmux/tests/load_plugins_test.sh
-            bash tmux/tests/config_entrypoint_test.sh
-          } 2>&1 | tee tmux-test.log
-      - name: Upload tmux test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tmux-test-diagnostics
-          path: tmux-test.log
+          bash tmux/tests/load_plugins_test.sh
+          bash tmux/tests/config_entrypoint_test.sh
       - name: YAML lint
         run: |
           ~/.local/bin/yamllint -d relaxed docker-compose.yaml lazygit/config.yml .github/workflows/validate.yml
