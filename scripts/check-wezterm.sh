@@ -8,6 +8,7 @@ SPEC=$DOTFILES_ROOT/wezterm/tests/config_spec.lua
 CONTROLLER=$DOTFILES_ROOT/scripts/wezterm-media.sh
 
 tmp=$(mktemp -d)
+rootless_home="$tmp/user-root"
 owned_pids=()
 cleanup() {
   local pid
@@ -23,7 +24,8 @@ trap cleanup EXIT
 mkdir -p \
   "$tmp/home" "$tmp/state" "$tmp/cache" "$tmp/data" "$tmp/runtime" \
   "$tmp/backgrounds" "$tmp/music" "$tmp/bin" \
-  "$tmp/home/dotfiles/wezterm/bg" "$tmp/home/dotfiles/wezterm/sd"
+  "$rootless_home/dotfiles/wezterm/bg" \
+  "$rootless_home/dotfiles/wezterm/sd"
 
 touch \
   "$tmp/backgrounds/a-default.png" \
@@ -32,9 +34,9 @@ touch \
   "$tmp/backgrounds/d-fourth.webp" \
   "$tmp/music/a-default.mp3" \
   "$tmp/music/b-second.flac" \
-  "$tmp/home/dotfiles/wezterm/bg/a-discovered.png" \
-  "$tmp/home/dotfiles/wezterm/sd/a-discovered.mp3"
-ln -s "$CONFIG" "$tmp/home/dotfiles/wezterm/.wezterm.lua"
+  "$rootless_home/dotfiles/wezterm/bg/a-discovered.png" \
+  "$rootless_home/dotfiles/wezterm/sd/a-discovered.mp3"
+ln -s "$CONFIG" "$rootless_home/dotfiles/wezterm/.wezterm.lua"
 
 lua_parser=
 if command -v luac5.4 >/dev/null 2>&1; then
@@ -85,11 +87,11 @@ env "${common_env[@]}" DOTFILES_WEZTERM_MODE=normal \
   WEZTERM_TEST_MPV=1 WEZTERM_TEST_VOLUME=1 \
   lua "$SPEC" "$CONFIG" callbacks
 
-rootless_bg="$tmp/home/dotfiles/wezterm/bg/a-discovered.png"
-rootless_track="$tmp/home/dotfiles/wezterm/sd/a-discovered.mp3"
+rootless_bg="$rootless_home/dotfiles/wezterm/bg/a-discovered.png"
+rootless_track="$rootless_home/dotfiles/wezterm/sd/a-discovered.mp3"
 rootless_glob="$rootless_track;$rootless_bg"
 env -u DOTFILES_ROOT \
-  HOME="$tmp/home" \
+  HOME="$rootless_home" \
   XDG_CONFIG_HOME="$tmp/config" \
   XDG_STATE_HOME="$tmp/state" \
   XDG_CACHE_HOME="$tmp/cache" \
@@ -97,8 +99,8 @@ env -u DOTFILES_ROOT \
   XDG_RUNTIME_DIR="$tmp/runtime" \
   DOTFILES_WEZTERM_MODE=normal \
   DOTFILES_WEZTERM_MEDIA_CONTROLLER="$CONTROLLER" \
-  WEZTERM_TEST_CONFIG_DIR="$tmp/home" \
-  WEZTERM_TEST_CONFIG_FILE="$tmp/home/.wezterm.lua" \
+  WEZTERM_TEST_CONFIG_DIR="$rootless_home" \
+  WEZTERM_TEST_CONFIG_FILE="$rootless_home/.wezterm.lua" \
   WEZTERM_TEST_GLOB="$rootless_glob" \
   WEZTERM_TEST_EXPECTED_BG="$rootless_bg" \
   WEZTERM_TEST_EXPECTED_TRACK="$rootless_track" \
