@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update
-      - run: sudo apt-get install -y shellcheck
+      - run: sudo apt-get install -y shellcheck tmux
       - run: python3 -m pip install --user yamllint
       - name: Bash syntax
         run: |
@@ -31,7 +31,9 @@ jobs:
         run: |
           find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
       - name: Tmux tests
-        run: bash tmux/tests/load_plugins_test.sh
+        run: |
+          bash tmux/tests/load_plugins_test.sh
+          bash tmux/tests/config_entrypoint_test.sh
       - name: YAML lint
         run: |
           ~/.local/bin/yamllint -d relaxed docker-compose.yaml lazygit/config.yml .github/workflows/validate.yml
