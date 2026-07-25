@@ -52,11 +52,49 @@ local function find_command(command)
   return nil
 end
 
-local config_dir = wezterm.config_dir or "."
-local root = os.getenv("DOTFILES_ROOT")
-if not root or root == "" then
-  root = config_dir:match("^(.*)/wezterm/?$") or config_dir
+local function dirname(path)
+  if not path or path == "" or path:find("[\r\n]") then
+    return nil
+  end
+  return path:gsub("/+$", ""):match("^(.*)/[^/]+$")
 end
+
+local function root_from_wezterm_path(path)
+  local directory = dirname(path)
+  if directory and directory:match("/wezterm$") then
+    return dirname(directory)
+  end
+  return nil
+end
+
+local function is_checkout_root(candidate)
+  return candidate ~= nil
+    and candidate ~= ""
+    and file_readable(join(candidate, "wezterm/.wezterm.lua"))
+end
+
+local config_dir = wezterm.config_dir or "."
+local root_candidates = {}
+local function add_root_candidate(candidate)
+  if candidate and candidate ~= "" then
+    root_candidates[#root_candidates + 1] = candidate
+  end
+end
+
+add_root_candidate(os.getenv("DOTFILES_ROOT"))
+add_root_candidate(root_from_wezterm_path(wezterm.config_file))
+add_root_candidate(config_dir:match("^(.*)/wezterm/?$"))
+add_root_candidate(join(home, "dotfiles"))
+add_root_candidate(join(home, "src/dotfiles"))
+
+local root
+for _, candidate in ipairs(root_candidates) do
+  if is_checkout_root(candidate) then
+    root = candidate
+    break
+  end
+end
+root = root or root_from_wezterm_path(wezterm.config_file) or config_dir
 
 local state_home = os.getenv("XDG_STATE_HOME")
 if not state_home or state_home == "" then
@@ -148,20 +186,27 @@ if mode ~= "minimal" then
   math.randomseed(random_seed)
   math.random()
 
-  local background_dir = os.getenv("DOTFILES_WEZTERM_BG_DIR")
-    or join(root, "wezterm/bg")
+  local configured_background_dir = os.getenv("DOTFILES_WEZTERM_BG_DIR")
+  local background_dir = configured_background_dir or join(root, "wezterm/bg")
   local music_dir = os.getenv("DOTFILES_WEZTERM_MUSIC_DIR")
     or join(root, "wezterm/sd")
   local background_index = build_index(background_dir, image_suffixes)
+  if #background_index == 0 and not configured_background_dir then
+    background_dir = join(home, "bg")
+    background_index = build_index(background_dir, image_suffixes)
+  end
   local music_index = build_index(music_dir, music_suffixes)
 
   local configured_background = os.getenv("DOTFILES_WEZTERM_BG")
   local persisted_background = read_state("background")
+  local legacy_background = join(background_dir, "bg.png")
   local current_background
   if valid_asset(configured_background, image_suffixes) then
     current_background = configured_background
   elseif valid_asset(persisted_background, image_suffixes) then
     current_background = persisted_background
+  elseif valid_asset(legacy_background, image_suffixes) then
+    current_background = legacy_background
   else
     current_background = background_index[1]
   end
@@ -253,6 +298,7 @@ if mode ~= "minimal" then
 
   local function apply_background(window, selected)
     if not selected then
+      warn_once(window, "background", "No readable background images were found")
       return
     end
     current_background = selected
@@ -292,9 +338,12 @@ if mode ~= "minimal" then
   end
 
   local configured_default_track = os.getenv("DOTFILES_WEZTERM_DEFAULT_TRACK")
+  local legacy_default_track = join(music_dir, "bg.mp3")
   local default_track
   if valid_asset(configured_default_track, music_suffixes) then
     default_track = configured_default_track
+  elseif valid_asset(legacy_default_track, music_suffixes) then
+    default_track = legacy_default_track
   else
     default_track = music_index[1]
   end
@@ -366,7 +415,7 @@ if mode ~= "minimal" then
 end
 
 wezterm.on("gui-startup", function()
-  wezterm.log_info("dotfiles WezTerm mode: " .. mode)
+  wezterm.log_info("dotfiles WezTerm mode: " .. mode .. "; root=" .. root)
 end)
 
 return config
