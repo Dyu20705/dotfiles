@@ -5,8 +5,6 @@ set -euo pipefail
 # Non-destructive checks for common failure modes and graceful degradation points.
 # By default runs read-only checks and reports issues. Nothing is mutated.
 
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
-
 echo "Failure mode checks (read-only)"
 
 # Clipboard tools
