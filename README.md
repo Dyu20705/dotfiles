@@ -71,6 +71,18 @@ ln -sf ~/dotfiles/lazygit/config.yml ~/.config/lazygit/config.yml
 ln -sf ~/dotfiles/nvim/.config/nvim ~/.config/nvim
 ```
 
+Install TPM and the declared tmux plugins once:
+
+```bash
+mkdir -p ~/.tmux/plugins
+if [ ! -d ~/.tmux/plugins/tpm ]; then
+  git clone --depth 1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+fi
+~/.tmux/plugins/tpm/bin/install_plugins
+```
+
+The core tmux configuration remains usable when TPM is absent, but plugin-provided bindings such as Vim pane navigation, clipboard integration, and session resurrection are unavailable until TPM and the plugins are installed.
+
 If you use Bash from a different checkout path, set `DOTFILES_ROOT` so the Bash wrappers can find the repo.
 
 ## Tooling Highlights
