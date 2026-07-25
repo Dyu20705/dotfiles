@@ -34,6 +34,7 @@ check() {
 }
 
 treesitter="$ROOT/nvim/.config/nvim/lua/plugins/treesitter.lua"
+treesitter_spec="$ROOT/nvim/tests/treesitter_spec.lua"
 lsp="$ROOT/nvim/.config/nvim/lua/plugins/lsp-config.lua"
 autotag="$ROOT/nvim/.config/nvim/lua/plugins/auto-tag.lua"
 trouble="$ROOT/nvim/.config/nvim/lua/plugins/trouble.lua"
@@ -52,6 +53,8 @@ check "Treesitter enables highlighting" \
   contains "$treesitter" 'highlight[[:space:]]*=[[:space:]]*\{'
 check "Treesitter disables automatic network installation" \
   contains "$treesitter" 'auto_install[[:space:]]*=[[:space:]]*false'
+check "Treesitter tolerates an unavailable plugin during bootstrap" \
+  lua "$treesitter_spec" "$treesitter"
 
 for parser in lua vim vimdoc query bash python javascript typescript tsx html css json yaml dockerfile c cpp rust go terraform markdown markdown_inline; do
   check "Treesitter selects parser: $parser" \
