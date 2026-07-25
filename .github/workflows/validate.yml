@@ -28,13 +28,24 @@ jobs:
         run: |
           find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r bash -n
       - name: ShellCheck
+        id: shellcheck
+        continue-on-error: true
         run: |
-          find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r shellcheck
+          find bash git tmux -type f -name '*.sh' -print0 | xargs -0 -r shellcheck 2>&1 | tee shellcheck.log
       - name: Tmux tests
         run: bash tmux/tests/load_plugins_test.sh
       - name: YAML lint
         run: |
           ~/.local/bin/yamllint -d relaxed docker-compose.yaml lazygit/config.yml .github/workflows/validate.yml
+      - name: Upload ShellCheck diagnostics
+        if: steps.shellcheck.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-diagnostics
+          path: shellcheck.log
+      - name: Fail on ShellCheck errors
+        if: steps.shellcheck.outcome == 'failure'
+        run: exit 1
 
   lua:
     name: Lua
