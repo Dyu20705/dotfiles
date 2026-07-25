@@ -39,6 +39,7 @@ autotag="$ROOT/nvim/.config/nvim/lua/plugins/auto-tag.lua"
 trouble="$ROOT/nvim/.config/nvim/lua/plugins/trouble.lua"
 conform="$ROOT/nvim/.config/nvim/lua/plugins/conform.lua"
 lint="$ROOT/nvim/.config/nvim/lua/plugins/nvim-lint.lua"
+lualine="$ROOT/nvim/.config/nvim/lua/plugins/lualine.lua"
 wezterm="$ROOT/wezterm/.wezterm.lua"
 
 check "Treesitter pins the Neovim 0.11-compatible branch" \
@@ -84,6 +85,11 @@ check "Conform has no stale lsp_fallback option" \
   not_contains "$conform" 'lsp_fallback'
 check "Lint is not triggered on TextChanged" \
   not_contains "$lint" 'TextChanged'
+
+check "Lualine uses Catppuccin's supported theme helper" \
+  contains "$lualine" 'catppuccin\.utils\.lualine'
+check "Lualine does not request the removed built-in Catppuccin theme" \
+  not_contains "$lualine" 'theme[[:space:]]*=[[:space:]]*["'\'']catppuccin["'\'']'
 
 check "WezTerm has no unmodified function-key media aliases" \
   not_contains "$wezterm" 'mods[[:space:]]*=[[:space:]]*["'\'']NONE["'\'']'
