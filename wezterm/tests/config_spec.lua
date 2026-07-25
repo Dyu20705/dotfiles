@@ -11,6 +11,7 @@ local function split(value)
   return items
 end
 
+local test_config_dir = assert(os.getenv("WEZTERM_TEST_CONFIG_DIR"))
 local wezterm = {
   action = {
     OpenLinkAtMouseCursor = { kind = "open-link" },
@@ -18,7 +19,8 @@ local wezterm = {
       return { kind = "send-string", value = value }
     end,
   },
-  config_dir = assert(os.getenv("WEZTERM_TEST_CONFIG_DIR")),
+  config_dir = test_config_dir,
+  config_file = os.getenv("WEZTERM_TEST_CONFIG_FILE") or (test_config_dir .. "/.wezterm.lua"),
   procinfo = { pid = function() return 1234 end },
 }
 
@@ -146,6 +148,18 @@ elseif scenario == "callbacks" then
   volume.action.callback(window)
   assert(calls.run[2][2] == "check" and calls.run[2][3] == "volume")
   assert(calls.background[3][2] == "volume" and calls.background[3][3] == "up")
+elseif scenario == "discovered-root" then
+  assert(
+    config.window_background_image == assert(os.getenv("WEZTERM_TEST_EXPECTED_BG")),
+    "config did not discover the checkout background without DOTFILES_ROOT"
+  )
+  local play = assert(binding("F10", "CTRL|SHIFT"), "default music key is missing")
+  play.action.callback(window)
+  assert(calls.background[1][2] == "play", "default music did not start")
+  assert(
+    calls.background[1][3] == assert(os.getenv("WEZTERM_TEST_EXPECTED_TRACK")),
+    "config did not discover the checkout music without DOTFILES_ROOT"
+  )
 else
   error("unknown scenario: " .. scenario)
 end
