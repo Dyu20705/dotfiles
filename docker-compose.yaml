@@ -1,16 +1,14 @@
 services:
   lazydocker:
-    # The upstream Docker Hub repository currently exposes `latest` and legacy
-    # version tags, not tags matching current GitHub releases. Keep this choice
-    # explicit and prefer the native LazyDocker binary for the newest release.
-    image: lazyteam/lazydocker:${LAZYDOCKER_IMAGE_TAG:-latest}
+    # Pinned fallback for reproducibility. Prefer the current native binary.
+    # Override LAZYDOCKER_IMAGE only after verifying the image or digest.
+    image: ${LAZYDOCKER_IMAGE:-lazyteam/lazydocker:0.24.1}
     stdin_open: true
     tty: true
     environment:
       TERM: xterm-256color
       COLORTERM: truecolor
     volumes:
-      # Security note: access to the Docker socket is effectively host-level
-      # Docker control. Run only trusted images and inspect updates before use.
+      # Docker socket access is effectively host-level Docker control.
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/.config/jesseduffield/lazydocker:/.config/jesseduffield/lazydocker
+      - ${HOME}/.config/jesseduffield/lazydocker:/root/.config/jesseduffield/lazydocker:ro
