@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 PROFILE=normal
 DRY_RUN=0
-usage() {
-  cat <<'EOF'
+usage() { cat <<'EOF'
 Usage: uninstall.sh [--profile minimal|normal|full] [--dry-run]
 
 Removes only symlinks whose target exactly matches the current manifest source.
