@@ -31,12 +31,11 @@ for path in "${required[@]}"; do
   }
 done
 
-# Personal identity must never remain in the tracked Git config.
-! git config --file "$ROOT/git/.gitconfig" --get user.name >/dev/null 2>&1
-! git config --file "$ROOT/git/.gitconfig" --get user.email >/dev/null 2>&1
-[ "$(git config --file "$ROOT/git/.gitconfig" --get include.path)" = '~/.gitconfig.local' ]
+if git config --file "$ROOT/git/.gitconfig" --get user.name >/dev/null 2>&1; then exit 1; fi
+if git config --file "$ROOT/git/.gitconfig" --get user.email >/dev/null 2>&1; then exit 1; fi
+# shellcheck disable=SC2088
+[ "$(git config --file "$ROOT/git/.gitconfig" --get include.path)" = "~/.gitconfig.local" ]
 
-# All third-party Actions references must be immutable full SHAs.
 while IFS= read -r workflow; do
   if grep -En '^[[:space:]]*- uses: [^#[:space:]]+@(v[0-9]+|main|master|latest)([[:space:]]|$)' "$workflow"; then
     printf 'mutable action reference in %s\n' "$workflow" >&2
@@ -44,7 +43,6 @@ while IFS= read -r workflow; do
   fi
 done < <(find "$ROOT/.github/workflows" -type f \( -name '*.yml' -o -name '*.yaml' \) -print)
 
-# Package dry-run is read-only and emits the Ubuntu package transaction.
 mkdir -p "$TMP/home" "$TMP/bin"
 cat > "$TMP/bin/sudo" <<'EOF'
 #!/usr/bin/env bash
@@ -52,12 +50,10 @@ printf 'sudo must not run during dry-run\n' >&2
 exit 99
 EOF
 chmod +x "$TMP/bin/sudo"
-package_output=$(HOME="$TMP/home" PATH="$TMP/bin:$PATH" \
-  bash "$ROOT/scripts/packages.sh" --profile normal --dry-run)
+package_output=$(HOME="$TMP/home" PATH="$TMP/bin:$PATH" bash "$ROOT/scripts/packages.sh" --profile normal --dry-run)
 printf '%s\n' "$package_output" | grep -F 'apt-get install' >/dev/null
 printf '%s\n' "$package_output" | grep -E 'tmux|neovim' >/dev/null
 
-# Uninstall removes only managed links.
 export HOME="$TMP/uninstall-home"
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_CACHE_HOME="$HOME/.cache"
@@ -70,18 +66,15 @@ bash "$ROOT/scripts/uninstall.sh" --profile minimal >/dev/null
 [ ! -e "$HOME/.gitconfig" ] && [ ! -L "$HOME/.gitconfig" ]
 [ -L "$HOME/unrelated-link" ]
 
-# Context resolution is observable and remote mode is conservative.
 SSH_CONNECTION='client 1 server 2' DOTFILES_PROFILE=normal \
   HOME="$TMP/context-home" XDG_CONFIG_HOME="$TMP/context-config" \
   bash "$ROOT/scripts/dot" env --json \
   | jq -e '.context == "remote" and .profile == "minimal"' >/dev/null
 
-# Benchmark output is stable JSON and budgets are numeric.
 HOME="$TMP/bench-home" XDG_CACHE_HOME="$TMP/bench-cache" \
   bash "$ROOT/scripts/benchmark.sh" --json \
   | jq -e 'type == "array" and length >= 2 and all(.[]; (.median_ms | type == "number") and (.budget_ms | type == "number"))' >/dev/null
 
-# TPM check is non-mutating and may report a supported degraded state.
 set +e
 HOME="$TMP/tpm-home" bash "$ROOT/scripts/install-tmux-plugins.sh" --check >/dev/null 2>&1
 status=$?
@@ -89,14 +82,11 @@ set -e
 [ "$status" -eq 0 ] || [ "$status" -eq 10 ]
 [ ! -e "$TMP/tpm-home/.tmux/plugins/tpm" ]
 
-# Operator docs must reference the implemented stable interfaces.
 grep -F 'dot doctor' "$ROOT/docs/CHEATSHEET.md" >/dev/null
 grep -F 'dev --list' "$ROOT/docs/CHEATSHEET.md" >/dev/null
 grep -F 'gw new' "$ROOT/docs/CHEATSHEET.md" >/dev/null
 grep -F 'Ctrl+A' "$ROOT/docs/KEYMAPS.md" >/dev/null
 grep -F '<leader>f' "$ROOT/docs/KEYMAPS.md" >/dev/null
 
-# LazyDocker must not default to a floating latest tag.
-! grep -Eq 'image:.*(:latest|:-latest)' "$ROOT/docker-compose.yaml"
-
+if grep -Eq 'image:.*(:latest|:-latest)' "$ROOT/docker-compose.yaml"; then exit 1; fi
 printf 'PASS: extended v0 contracts\n'
