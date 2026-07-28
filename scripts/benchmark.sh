@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 FORMAT=text
-if [ "${1:-}" = -h ] || [ "${1:-}" = --help ]; then
-  printf 'Usage: benchmark.sh [--json]\n'; exit 0
-fi
+if [ "${1:-}" = -h ] || [ "${1:-}" = --help ]; then printf 'Usage: benchmark.sh [--json]\n'; exit 0; fi
 [ "${1:-}" = --json ] && FORMAT=json
 measure() {
   python3 - "$@" <<'PY'
 import statistics, subprocess, sys, time
 samples=[]
 for _ in range(3):
-    start=time.perf_counter(); subprocess.run(sys.argv[1:],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False); samples.append((time.perf_counter()-start)*1000)
+    start=time.perf_counter()
+    subprocess.run(sys.argv[1:], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    samples.append((time.perf_counter()-start)*1000)
 print(round(statistics.median(samples),3))
 PY
 }
 tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
 add_metric() {
-  local metric=$1 budget=$2 value status=ok; shift 2
+  local metric=$1 budget=$2 value status=ok
+  shift 2
   value=$(measure "$@")
-  awk -v v="$value" -v b="$budget" 'BEGIN { exit !(v > b) }' && status=over-budget || true
+  if awk -v v="$value" -v b="$budget" 'BEGIN { exit !(v > b) }'; then status=over-budget; fi
   jq -cn --arg metric "$metric" --argjson median "$value" --argjson budget "$budget" --arg status "$status" '{metric:$metric,samples:3,median_ms:$median,budget_ms:$budget,status:$status}' >> "$tmp"
 }
-require_cmd python3; validate_manifest || die "manifest validation failed"
+require_cmd python3
+validate_manifest || die "manifest validation failed"
 add_metric bash "$(jq '.performance_budgets_ms.bash' "$DOTFILES_MANIFEST")" bash --noprofile --norc -c exit
 add_metric git 250 git --version
 if has_cmd zsh; then add_metric zsh "$(jq '.performance_budgets_ms.zsh' "$DOTFILES_MANIFEST")" zsh -d -f -c exit; fi
