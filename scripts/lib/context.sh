@@ -3,6 +3,12 @@
 # shellcheck source=scripts/lib/common.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
+DOTFILES_LOCAL_ENV="$(xdg_config_home)/dotfiles/local.env"
+if [ -r "$DOTFILES_LOCAL_ENV" ]; then
+  # shellcheck source=/dev/null
+  . "$DOTFILES_LOCAL_ENV"
+fi
+
 dotfiles_detect_context() {
   if [ -n "${DOTFILES_CONTEXT:-}" ]; then
     validate_context "$DOTFILES_CONTEXT"
