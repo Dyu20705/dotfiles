@@ -50,11 +50,16 @@ jobs:
         run: |
           set -o pipefail
           bash scripts/check-tmux-contract.sh 2>&1 | tee -a "$RUNNER_TEMP/static.log"
-      - name: Run static checks
+      - name: Run existing static checks
         shell: bash
         run: |
           set -o pipefail
           bash scripts/test.sh --profile static 2>&1 | tee -a "$RUNNER_TEMP/static.log"
+      - name: Run rush v0 contract checks
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/test-v0.sh 2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Upload static validation log
         if: always()
         uses: actions/upload-artifact@v4
