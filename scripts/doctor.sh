@@ -54,13 +54,13 @@ while IFS=$'\034' read -r name command_name minimum required; do
   if [ -n "$path" ]; then
     version=$(first_version "$command_name")
     detected_version=$(printf '%s\n' "$version" | grep -Eo '[0-9]+([.][0-9]+){1,3}' | head -n 1 || true)
-    status=ok
+    status='ok'
     if [ -n "$minimum" ]; then
-      if [ -z "$detected_version" ]; then status=version-unknown
-      elif ! version_ge "$detected_version" "$minimum"; then status=outdated; fi
+      if [ -z "$detected_version" ]; then status='version-unknown'
+      elif ! version_ge "$detected_version" "$minimum"; then status='outdated'; fi
     fi
-  elif [ "$required" = true ]; then status=missing
-  else status=optional-missing
+  elif [ "$required" = true ]; then status='missing'
+  else status='optional-missing'
   fi
   if [ "$status" != ok ]; then remediation="dot packages --profile $PROFILE --dry-run"; fi
   jq -cn --arg type command --arg name "$name" --arg command "$command_name" \
@@ -71,10 +71,10 @@ while IFS=$'\034' read -r name command_name minimum required; do
 done < <(jq -r --arg profile "$PROFILE" '.apps[] | [.name,.command,(.minimum // ""),(((.required_in | index($profile)) != null)|tostring)] | join("\u001c")' "$DOTFILES_MANIFEST")
 
 while IFS=$'\t' read -r source_rel target_raw; do
-  source="$DOTFILES_ROOT/$source_rel"; target=$(expand_home "$target_raw"); status=missing; resolved=""
-  if [ ! -e "$source" ]; then status=source-missing
-  elif [ -L "$target" ]; then resolved=$(readlink "$target" 2>/dev/null || true); if [ "$resolved" = "$source" ]; then status=ok; else status=wrong-target; fi
-  elif [ -e "$target" ]; then status=not-symlink
+  source="$DOTFILES_ROOT/$source_rel"; target=$(expand_home "$target_raw"); status='missing'; resolved=""
+  if [ ! -e "$source" ]; then status='source-missing'
+  elif [ -L "$target" ]; then resolved=$(readlink "$target" 2>/dev/null || true); if [ "$resolved" = "$source" ]; then status='ok'; else status='wrong-target'; fi
+  elif [ -e "$target" ]; then status='not-symlink'
   fi
   jq -cn --arg type link --arg source "$source" --arg target "$target" --arg resolved "$resolved" --arg status "$status" \
     --arg remediation "dot link --profile $PROFILE" \
@@ -82,24 +82,24 @@ while IFS=$'\t' read -r source_rel target_raw; do
 done < <(jq -r --arg profile "$PROFILE" '.links[] | select(.profiles | index($profile)) | [.source,.target] | @tsv' "$DOTFILES_MANIFEST")
 
 GIT_LOCAL="$HOME/.gitconfig.local"
-if [ -r "$GIT_LOCAL" ]; then status=ok; else status=optional-missing; fi
+if [ -r "$GIT_LOCAL" ]; then status='ok'; else status='optional-missing'; fi
 jq -cn --arg type local-config --arg name git-identity --arg path "$GIT_LOCAL" --arg status "$status" \
   '{type:$type,name:$name,path:$path,status:$status,required:false,remediation:(if $status=="ok" then "" else "copy git/.gitconfig.local.example to ~/.gitconfig.local" end)}' >> "$TMP_RESULTS"
 
 TPM="$HOME/.tmux/plugins/tpm/tpm"
-if [ "$PROFILE" = minimal ]; then status=disabled
-elif [ -x "$TPM" ]; then status=ok
-else status=optional-missing
+if [ "$PROFILE" = minimal ]; then status='disabled'
+elif [ -x "$TPM" ]; then status='ok'
+else status='optional-missing'
 fi
 jq -cn --arg type integration --arg name tpm --arg path "$TPM" --arg status "$status" \
   '{type:$type,name:$name,path:$path,status:$status,required:false,remediation:(if $status=="optional-missing" then "bash scripts/install-tmux-plugins.sh --install" else "" end)}' >> "$TMP_RESULTS"
 
 while IFS= read -r capability; do
   [ -n "$capability" ] || continue
-  if ! dotfiles_capability_known "$capability"; then status=invalid
-  elif [ "$PROFILE" = minimal ]; then status=disabled
-  elif bash "$DOTFILES_ROOT/capabilities/$capability/doctor.sh" >/dev/null 2>&1; then status=ok
-  else status=degraded
+  if ! dotfiles_capability_known "$capability"; then status='invalid'
+  elif [ "$PROFILE" = minimal ]; then status='disabled'
+  elif bash "$DOTFILES_ROOT/capabilities/$capability/doctor.sh" >/dev/null 2>&1; then status='ok'
+  else status='degraded'
   fi
   jq -cn --arg type capability --arg name "$capability" --arg status "$status" \
     '{type:$type,name:$name,status:$status,required:false,remediation:(if $status=="invalid" then "dot capability disable " + $name elif $status=="degraded" then "dot capability doctor " + $name else "" end)}' >> "$TMP_RESULTS"
