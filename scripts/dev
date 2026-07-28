@@ -9,15 +9,19 @@ EOF
 canonical() { if command -v realpath >/dev/null 2>&1; then realpath "$1"; else (cd "$1" && pwd -P); fi; }
 discover() {
   local root old_ifs
-  mkdir -p "$(dirname "$CACHE_FILE")"; : > "$CACHE_FILE.tmp"
-  old_ifs=$IFS; IFS=:
+  mkdir -p "$(dirname "$CACHE_FILE")"
+  : > "$CACHE_FILE.tmp"
+  old_ifs=$IFS
+  IFS=:
   for root in $ROOTS; do
     [ -d "$root" ] || continue
     find "$root" -maxdepth "${DOTFILES_PROJECT_MAX_DEPTH:-5}" -type d -name .git -prune -print 2>/dev/null \
-      | while IFS= read -r gitdir; do canonical "${gitdir%/.git}"; done
+      | while IFS= read -r gitdir; do canonical "${gitdir%/.git}"; done \
+      >> "$CACHE_FILE.tmp"
   done
   IFS=$old_ifs
-  sort -u "$CACHE_FILE.tmp" > "$CACHE_FILE"; rm -f "$CACHE_FILE.tmp"
+  sort -u "$CACHE_FILE.tmp" > "$CACHE_FILE"
+  rm -f "$CACHE_FILE.tmp"
 }
 ensure_cache() { [ -s "$CACHE_FILE" ] || discover; }
 session_name() { local path=$1 base hash; base=$(basename "$path" | tr -cs '[:alnum:]_-' '-'); hash=$(printf '%s' "$path" | cksum | awk '{printf "%06x", $1 % 16777215}'); printf '%s-%s\n' "$base" "$hash"; }
