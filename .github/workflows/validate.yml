@@ -39,27 +39,34 @@ jobs:
       - name: Install validation tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq jq zsh shellcheck lua5.4 yamllint tmux
+          sudo apt-get install -y -qq \
+            jq zsh shellcheck lua5.4 yamllint tmux
       - name: Run editor contract checks
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/check-nvim-contract.sh 2>&1 | tee "$RUNNER_TEMP/static.log"
+          bash scripts/check-nvim-contract.sh \
+            2>&1 | tee "$RUNNER_TEMP/static.log"
       - name: Run tmux integration contract checks
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/check-tmux-contract.sh 2>&1 | tee -a "$RUNNER_TEMP/static.log"
+          bash scripts/check-tmux-contract.sh \
+            2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Run existing static checks
         shell: bash
+        env:
+          WAYLAND_DISPLAY: wayland-0
         run: |
           set -o pipefail
-          bash scripts/test.sh --profile static 2>&1 | tee -a "$RUNNER_TEMP/static.log"
+          bash scripts/test.sh --profile static \
+            2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Run rush v0 contract checks
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/test-v0.sh 2>&1 | tee -a "$RUNNER_TEMP/static.log"
+          bash scripts/test-v0.sh \
+            2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Upload static validation log
         if: always()
         uses: actions/upload-artifact@v4
@@ -96,7 +103,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/test.sh --profile runtime 2>&1 | tee "$RUNNER_TEMP/runtime-${RUNNER_OS}.log"
+          bash scripts/test.sh --profile runtime \
+            2>&1 | tee "$RUNNER_TEMP/runtime-${RUNNER_OS}.log"
       - name: Upload runtime validation log
         if: always()
         uses: actions/upload-artifact@v4
