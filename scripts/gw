@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+usage() { cat <<'EOF'
+Usage: gw list|status|new|open|remove|prune
+EOF
+}
+repo_root() { git rev-parse --show-toplevel 2>/dev/null; }
+repo_name() { basename "$(repo_root)"; }
+worktree_root() { printf '%s\n' "${DOTFILES_WORKTREE_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/worktrees/$(repo_name)}"; }
+worktree_path() { case "$1" in /*|*/*) printf '%s\n' "$1" ;; *) printf '%s/%s\n' "$(worktree_root)" "$1" ;; esac; }
+branch_checked_out() { git worktree list --porcelain | grep -Fx "branch refs/heads/$1" >/dev/null 2>&1; }
+command_list() {
+  git worktree list --porcelain | awk '/^worktree / { if (path != "") print path "\t" branch; path=substr($0,10); branch="detached" } /^branch / { branch=$0; sub("^branch refs/heads/","",branch) } END { if (path != "") print path "\t" branch }' \
+    | while IFS=$'\t' read -r path branch; do dirty=clean; [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] || dirty=dirty; last=$(git -C "$path" log -1 --format='%h %s' 2>/dev/null || printf none); printf '%s\t%s\t%s\t%s\n' "$path" "$branch" "$dirty" "$last"; done
+}
+command_new() {
+  local branch=$1 base=${2:-HEAD} path
+  branch_checked_out "$branch" && { printf 'branch is already checked out: %s\n' "$branch" >&2; return 20; }
+  path="$(worktree_root)/$branch"; [ ! -e "$path" ] || return 20; mkdir -p "$(dirname "$path")"
+  if git show-ref --verify --quiet "refs/heads/$branch"; then git worktree add "$path" "$branch"; else git worktree add -b "$branch" "$path" "$base"; fi
+  printf '%s\n' "$path"
+}
+command_open() { local path; path=$(worktree_path "$1"); [ -d "$path" ] || return 20; if command -v dev >/dev/null 2>&1; then (cd "$path" && exec dev .); else printf '%s\n' "$path"; fi; }
+command_remove() {
+  local selector=$1 force=${2:-0} path
+  path=$(worktree_path "$selector"); [ -d "$path" ] || { printf 'worktree not found: %s\n' "$path" >&2; return 20; }
+  git worktree list --porcelain | grep -Fx "worktree $path" >/dev/null || return 20
+  if [ -n "$(git -C "$path" status --porcelain)" ] && [ "$force" -ne 1 ]; then printf 'refusing to remove dirty worktree: %s (use --force)\n' "$path" >&2; return 30; fi
+  if [ "$force" -eq 1 ]; then git worktree remove --force "$path"; else git worktree remove "$path"; fi
+}
+[ $# -gt 0 ] || { usage; exit 20; }
+repo_root >/dev/null || { printf 'not inside a Git repository\n' >&2; exit 20; }
+case "$1" in
+  -h|--help) usage ;;
+  list|status) command_list ;;
+  new) [ $# -ge 2 ] || exit 20; command_new "$2" "${3:-HEAD}" ;;
+  open) [ $# -ge 2 ] || exit 20; command_open "$2" ;;
+  remove) [ $# -ge 2 ] || exit 20; force=0; [ "${3:-}" = --force ] && force=1; command_remove "$2" "$force" ;;
+  prune) git worktree prune --verbose ;;
+  *) exit 20 ;;
+esac

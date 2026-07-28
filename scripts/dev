@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/dotfiles/projects"
+ROOTS=${DOTFILES_PROJECT_DIRS:-"$HOME/projects:$HOME/work:$HOME/study"}
+usage() { cat <<'EOF'
+Usage: dev [query|.|--list|--refresh|--kill <name>]
+EOF
+}
+canonical() { if command -v realpath >/dev/null 2>&1; then realpath "$1"; else (cd "$1" && pwd -P); fi; }
+discover() {
+  local root old_ifs
+  mkdir -p "$(dirname "$CACHE_FILE")"; : > "$CACHE_FILE.tmp"
+  old_ifs=$IFS; IFS=:
+  for root in $ROOTS; do
+    [ -d "$root" ] || continue
+    find "$root" -maxdepth "${DOTFILES_PROJECT_MAX_DEPTH:-5}" -type d -name .git -prune -print 2>/dev/null \
+      | while IFS= read -r gitdir; do canonical "${gitdir%/.git}"; done
+  done
+  IFS=$old_ifs
+  sort -u "$CACHE_FILE.tmp" > "$CACHE_FILE"; rm -f "$CACHE_FILE.tmp"
+}
+ensure_cache() { [ -s "$CACHE_FILE" ] || discover; }
+session_name() { local path=$1 base hash; base=$(basename "$path" | tr -cs '[:alnum:]_-' '-'); hash=$(printf '%s' "$path" | cksum | awk '{printf "%06x", $1 % 16777215}'); printf '%s-%s\n' "$base" "$hash"; }
+open_project() {
+  local project session
+  project=$(canonical "$1"); session=$(session_name "$project")
+  if ! command -v tmux >/dev/null 2>&1; then printf '%s\n' "$project"; return 10; fi
+  if [ -n "${TMUX:-}" ]; then tmux has-session -t "$session" 2>/dev/null || tmux new-session -d -s "$session" -c "$project"; exec tmux switch-client -t "$session"; fi
+  exec tmux new-session -A -s "$session" -c "$project"
+}
+select_project() {
+  local query=${1:-} matches
+  ensure_cache
+  if [ -n "$query" ]; then matches=$(grep -iF "$query" "$CACHE_FILE" || true); else matches=$(cat "$CACHE_FILE"); fi
+  [ -n "$matches" ] || { printf 'no project matched: %s\n' "$query" >&2; return 20; }
+  if [ "$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1 ]; then printf '%s\n' "$matches"
+  elif command -v fzf >/dev/null 2>&1 && [ -t 0 ]; then printf '%s\n' "$matches" | fzf --prompt='project> '
+  else printf '%s\nmultiple projects matched; refine the query or install fzf\n' "$matches" >&2; return 20; fi
+}
+case "${1:-}" in
+  -h|--help) usage ;;
+  --refresh) discover; cat "$CACHE_FILE" ;;
+  --list) ensure_cache; cat "$CACHE_FILE" ;;
+  --kill) [ $# -ge 2 ] || exit 20; command -v tmux >/dev/null 2>&1 || exit 10; tmux kill-session -t "$2" ;;
+  .) project=$(git rev-parse --show-toplevel 2>/dev/null) || { printf 'not inside a Git repository\n' >&2; exit 20; }; open_project "$project" ;;
+  *) project=$(select_project "${1:-}") || exit $?; open_project "$project" ;;
+esac
