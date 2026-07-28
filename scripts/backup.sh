@@ -2,11 +2,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
 BACKUP_BASE="$(xdg_state_home)/dotfiles/backups"
 
-usage() {
-  cat <<'EOF'
+usage() { cat <<'EOF'
 Usage:
   backup.sh list [--json]
   backup.sh restore <id> [--force]
@@ -66,11 +66,7 @@ restore_backup() {
 [ $# -gt 0 ] || { usage; exit 20; }
 case "$1" in
   list) shift; if [ "${1:-}" = --json ]; then list_backups json; else list_backups text; fi ;;
-  restore)
-    [ $# -ge 2 ] || die "restore requires a backup id" 20
-    force=0; [ "${3:-}" = --force ] && force=1
-    restore_backup "$2" "$force"
-    ;;
+  restore) [ $# -ge 2 ] || die "restore requires a backup id" 20; force=0; [ "${3:-}" = --force ] && force=1; restore_backup "$2" "$force" ;;
   -h|--help) usage ;;
   *) die "unknown backup command: $1" 20 ;;
 esac
