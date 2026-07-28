@@ -3,13 +3,27 @@
   "root_env": "DOTFILES_ROOT",
   "profiles": {
     "minimal": {
-      "description": "Portable shell and Git baseline with manifest tooling"
+      "description": "Portable shell and Git recovery baseline"
     },
     "normal": {
-      "description": "Daily terminal workflow with Zsh, tmux, Neovim, Git and jq"
+      "description": "Daily Ubuntu terminal workflow with tmux and Neovim"
     },
     "full": {
-      "description": "Normal workflow plus terminal UI, fuzzy navigation and container helpers"
+      "description": "Normal workflow plus WezTerm, fuzzy tools and container helpers"
+    }
+  },
+  "contexts": {
+    "desktop": {
+      "description": "Ubuntu desktop with GUI and local clipboard"
+    },
+    "laptop": {
+      "description": "Ubuntu laptop with conservative background work"
+    },
+    "server": {
+      "description": "Headless local machine; defaults to minimal side effects"
+    },
+    "remote": {
+      "description": "SSH or CI session; defaults to minimal side effects"
     }
   },
   "apps": [
@@ -30,6 +44,20 @@
     { "name": "shellcheck", "command": "shellcheck", "minimum": null, "required_in": [] },
     { "name": "yamllint", "command": "yamllint", "minimum": null, "required_in": [] }
   ],
+  "packages": {
+    "minimal": ["bash", "git", "jq", "curl", "ca-certificates"],
+    "normal": ["bash", "git", "jq", "curl", "ca-certificates", "zsh", "tmux", "neovim", "ripgrep", "fd-find", "fzf", "bat", "eza", "direnv", "wl-clipboard", "xclip"],
+    "full": ["bash", "git", "jq", "curl", "ca-certificates", "zsh", "tmux", "neovim", "ripgrep", "fd-find", "fzf", "bat", "eza", "direnv", "wl-clipboard", "xclip", "mpv", "docker.io", "docker-compose-v2"]
+  },
+  "commands": ["dot", "dev", "gw"],
+  "performance_budgets_ms": {
+    "bash": 250,
+    "zsh": 500,
+    "tmux": 800,
+    "nvim": 1200,
+    "wezterm": 1500
+  },
+  "capability_packs": ["system"],
   "links": [
     { "source": "zsh/.zshrc", "target": "~/.zshrc", "profiles": ["normal", "full"] },
     { "source": "bash/.bashrc", "target": "~/.bashrc", "profiles": ["minimal", "normal", "full"] },
@@ -44,6 +72,15 @@
     { "source": "lazygit/config.yml", "target": "~/.config/lazygit/config.yml", "profiles": ["full"] },
     { "source": "scripts/open.sh", "target": "~/.local/bin/dotfiles-open", "profiles": ["minimal", "normal", "full"] },
     { "source": "scripts/wezterm-media.sh", "target": "~/.local/bin/dotfiles-wezterm-media", "profiles": ["full"] },
-    { "source": "scripts/doctor.sh", "target": "~/.local/bin/dotfiles-doctor", "profiles": ["minimal", "normal", "full"] }
+    { "source": "scripts/doctor.sh", "target": "~/.local/bin/dotfiles-doctor", "profiles": ["minimal", "normal", "full"] },
+    { "source": "scripts/dot", "target": "~/.local/bin/dot", "profiles": ["minimal", "normal", "full"] },
+    { "source": "scripts/dev", "target": "~/.local/bin/dev", "profiles": ["normal", "full"] },
+    { "source": "scripts/gw", "target": "~/.local/bin/gw", "profiles": ["normal", "full"] },
+    { "source": "completions/dot.bash", "target": "~/.local/share/bash-completion/completions/dot", "profiles": ["normal", "full"] },
+    { "source": "completions/dev.bash", "target": "~/.local/share/bash-completion/completions/dev", "profiles": ["normal", "full"] },
+    { "source": "completions/gw.bash", "target": "~/.local/share/bash-completion/completions/gw", "profiles": ["normal", "full"] },
+    { "source": "completions/_dot", "target": "~/.local/share/zsh/site-functions/_dot", "profiles": ["normal", "full"] },
+    { "source": "completions/_dev", "target": "~/.local/share/zsh/site-functions/_dev", "profiles": ["normal", "full"] },
+    { "source": "completions/_gw", "target": "~/.local/share/zsh/site-functions/_gw", "profiles": ["normal", "full"] }
   ]
 }
