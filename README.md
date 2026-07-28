@@ -1,175 +1,161 @@
 # Dotfiles
 
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-111827?style=flat-square)](https://github.com/Dyu20705/dotfiles)
-[![Shell](https://img.shields.io/badge/shell-zsh%20%2B%20bash-2a2a2a?style=flat-square)](https://github.com/Dyu20705/dotfiles)
-[![Editor](https://img.shields.io/badge/editor-Neovim-57a143?style=flat-square)](https://github.com/Dyu20705/dotfiles)
-[![Terminal](https://img.shields.io/badge/terminal-WezTerm%20%2B%20tmux-0f172a?style=flat-square)](https://github.com/Dyu20705/dotfiles)
+Ubuntu-first terminal workstation built around WezTerm, tmux, Bash/Zsh,
+Neovim and Git. The current v0 prioritizes a short usable path, rollback and
+diagnostics; deeper redesign can replace internals behind the stable commands.
 
-Terminal-first dotfiles built around a predictable WezTerm → tmux → shell →
-Neovim workflow. Native configuration formats stay native; Bash and `jq` provide
-installation, diagnostics, state management and smoke tests.
+## Quick start
 
-## Design principles
-
-- tmux is a local session layer, not a signal to disable shell features.
-- Optional tools degrade quietly when unavailable.
-- Cache, state and personal identity stay outside the repository.
-- One canonical config exists per application.
-- Runtime smoke tests complement syntax linting.
-- Machine-specific changes belong in local files or environment variables.
-
-## Stack
-
-| Layer | Role | Canonical config |
-| --- | --- | --- |
-| Terminal | WezTerm entrypoint and optional aesthetics | `wezterm/.wezterm.lua` |
-| Sessions | panes, windows, clipboard and explicit persistence | `tmux/tmux.conf` |
-| Shell | local/remote-aware Bash and Zsh startup | `bash/`, `zsh/.zshrc` |
-| Editor | Neovim 0.11.3+ with lazy-loaded plugins | `nvim/.config/nvim/` |
-| Git | portable defaults plus local identity | `git/.gitconfig` |
-| TUI | LazyGit with a portable opener | `lazygit/config.yml` |
-| Containers | optional documented LazyDocker helper | `docker-compose.yaml` |
-
-The supported commands, minimum versions, profiles and symlinks are declared in
-`config/workflow.json`.
-
-## Installation
-
-`jq` is required by the manifest-driven tooling.
+`jq` and Git are the only bootstrap prerequisites.
 
 ```bash
 git clone https://github.com/Dyu20705/dotfiles.git ~/src/dotfiles
 cd ~/src/dotfiles
 
-bash scripts/bootstrap.sh --profile normal --dry-run
-bash scripts/bootstrap.sh --profile normal
+# Inspect the Ubuntu transaction without changing the machine.
+bash scripts/dot packages --profile normal --dry-run
+
+# Install packages explicitly when ready, then deploy links.
+bash scripts/dot packages --profile normal --yes
+bash scripts/dot install --profile normal
+
+# The command is now linked into ~/.local/bin.
+dot doctor
+dot check runtime
 ```
 
-Profiles:
-
-- `minimal`: Bash and Git baseline.
-- `normal`: daily Zsh, tmux, Neovim and Git workflow.
-- `full`: normal profile plus WezTerm and LazyGit.
-
-Existing deployment targets are moved to
-`${XDG_STATE_HOME:-~/.local/state}/dotfiles/backups` before a new symlink is
-created.
-
-Create machine-local Git identity after bootstrapping:
+Create private Git identity after deployment:
 
 ```bash
 cp git/.gitconfig.local.example ~/.gitconfig.local
 $EDITOR ~/.gitconfig.local
 ```
 
-## Diagnostics and tests
+## Daily workflow
 
 ```bash
-bash scripts/doctor.sh --profile normal
-bash scripts/doctor.sh --profile normal --json | jq
+dot status
+dev --list
+dev my-project
 
-bash scripts/test.sh --profile static
-bash scripts/test.sh --profile runtime
-bash scripts/test.sh --profile full
-bash scripts/check-wezterm.sh
+gw new issue-123 main
+gw status
+gw open issue-123
 ```
 
-Runtime tests use isolated temporary homes and a dedicated tmux socket. Missing
-optional GUI applications are reported as skipped rather than silently assumed
-to work.
+`dev` discovers Git repositories beneath `DOTFILES_PROJECT_DIRS`, uses `fzf`
+when available and otherwise accepts a refined query. It attaches to one stable
+tmux session per canonical project path.
 
-## Runtime modes
+`gw` is a thin offline Git worktree guard. It refuses duplicate checked-out
+branches and dirty removal unless `--force` is explicit. It never fetches,
+deletes branches or merges.
 
-### Shell
+## Profiles and contexts
 
-`DOTFILES_SHELL_MODE` accepts `minimal`, `normal` or `full`. SSH and CI sessions
-fall back to minimal mode unless full mode is explicitly requested. A shell
-inside tmux remains normal because tmux is the primary local workflow.
+Profiles control feature breadth:
 
-### WezTerm
+- `minimal`: Bash, Git, operator command and recovery path;
+- `normal`: daily Zsh, tmux and Neovim workflow;
+- `full`: normal plus WezTerm, LazyGit and optional media/container helpers.
 
-`DOTFILES_WEZTERM_MODE` accepts:
+Contexts describe the machine: `desktop`, `laptop`, `server` and `remote`.
+SSH, CI and headless sessions conservatively resolve to minimal mode unless
+`DOTFILES_ALLOW_FULL_REMOTE=1` is explicit.
 
-- `minimal`: terminal and tmux only.
-- `normal`: deterministic local background plus manual, modified media controls.
-- `aesthetic`: normal behavior plus legacy F6–F10 media aliases and higher FPS.
-
-Assets resolve from the active config checkout without assuming `~/dotfiles`.
-Override them with `DOTFILES_WEZTERM_BG_DIR`, `DOTFILES_WEZTERM_MUSIC_DIR`,
-`DOTFILES_WEZTERM_BG` and `DOTFILES_WEZTERM_DEFAULT_TRACK`. Background selection
-and brightness persist under `${XDG_STATE_HOME:-~/.local/state}/dotfiles/wezterm`.
-No mode autoplays music.
-
-## Core keymaps
-
-### tmux
-
-- Prefix: `Ctrl+A`
-- Split horizontal: `Prefix+\`
-- Split vertical: `Prefix+-`
-- Session chooser: `Prefix+s`
-- Clipboard paste: `Prefix+p` or `Shift+Insert`
-- Reload: `Prefix+r`
-- Diagnostics: `Prefix+D`
-
-`Ctrl+V` is intentionally left to Neovim and other applications.
-
-### Neovim namespaces
-
-- `<leader>f`: find/Telescope
-- `<leader>g`: Git
-- `<leader>t`: tests
-- `<leader>o`: terminal/open tools
-- `<leader>d`: debugger
-- `<leader>x`: diagnostics and lint
-
-## tmux state and status
-
-- Cached UI data: `${XDG_CACHE_HOME:-~/.cache}/dotfiles/tmux`
-- Session metadata: `${XDG_STATE_HOME:-~/.local/state}/dotfiles/tmux/sessions`
-
-Session metadata is written atomically as JSON through `jq`:
+Inspect the effective non-secret state:
 
 ```bash
-bash tmux/session-manager.sh create project "$PWD" "Current project"
-bash tmux/session-manager.sh list
-bash tmux/session-manager.sh restore
+dot env
+dot env --json | jq
 ```
 
-Weather and random-note status collectors are disabled by default. Enable them
-explicitly with `DOTFILES_STATUS_WEATHER=1` or
-`DOTFILES_STATUS_RANDOM_NOTE=1`.
+## Backup, restore and uninstall
 
-## LazyDocker helper
+Every mutating bootstrap run records a manifest beneath
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/backups`.
 
-Prefer installing the current native LazyDocker release. The optional Compose
-helper remains available for convenience:
+```bash
+dot backup list
+dot backup restore <id>
+dot uninstall --profile normal --dry-run
+dot uninstall --profile normal
+```
+
+Restore refuses a path changed after deployment unless `--force` is supplied.
+Uninstall removes only symlinks that still point into this checkout.
+
+## tmux and Neovim
+
+- tmux prefix: `Ctrl+A`;
+- reload: `Ctrl+A`, then `r`;
+- system clipboard paste: `Ctrl+A`, then `p`;
+- `Ctrl+V` remains owned by applications;
+- Neovim find namespace: `<leader>f`;
+- Git namespace: `<leader>g`;
+- diagnostics/lint namespace: `<leader>x`.
+
+TPM is optional. Core tmux works without it:
+
+```bash
+bash scripts/install-tmux-plugins.sh --check
+bash scripts/install-tmux-plugins.sh --install
+```
+
+Extended Neovim owners such as terminal, tests, DAP UI, file tree and broad Git
+UI remain capability-gated rather than normal-startup dependencies.
+
+## Capability packs and private overlays
+
+Enable the read-only system inspection demonstration pack:
+
+```bash
+dot capability list
+dot capability enable system
+dot capability doctor system
+dot capability disable system
+```
+
+Private values belong outside Git. Examples are provided for shell/context,
+tmux, Neovim, WezTerm and Git identity. Minimal mode never loads capability
+packs.
+
+## Verification
+
+```bash
+dot check static
+dot check runtime
+dot check full
+bash scripts/test-v0.sh
+dot bench --json | jq
+bash scripts/security-check.sh
+```
+
+CI runs Markdown, static contracts, Ubuntu/macOS runtime smoke tests, Ubuntu
+clean-room deployment and security checks. GUI rendering, physical key routing,
+Wayland/X11/OSC52 clipboard behavior, media playback and private assets require
+manual workstation acceptance.
+
+## LazyDocker fallback
+
+Prefer a native LazyDocker release. The Compose helper is pinned and mounts the
+Docker socket, which grants powerful host control:
 
 ```bash
 docker compose run --rm lazydocker
 ```
 
-The upstream Docker Hub repository does not publish tags matching current
-GitHub releases, so the helper uses the explicitly documented `latest` tag.
-Override it only with a tag you have verified exists:
-
-```bash
-LAZYDOCKER_IMAGE_TAG=latest docker compose run --rm lazydocker
-```
-
-Mounting `/var/run/docker.sock` gives the container powerful control over the
-host Docker daemon. Only run trusted images. A future GHCR workflow should build
-current releases and allow the Compose file to pin a verified digest.
+Override `LAZYDOCKER_IMAGE` only after verifying an explicit tag or digest.
 
 ## Documentation
 
-- [Dependencies](docs/DEPENDENCIES.md)
+- [Cheat sheet](docs/CHEATSHEET.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Git and worktrees](docs/GIT_WORKFLOW.md)
+- [Keymaps](docs/KEYMAPS.md)
+- [Neovim plugin audit](docs/NEOVIM_PLUGINS.md)
+- [Security](docs/SECURITY.md)
+- [Benchmarks](docs/BENCHMARKS.md)
 - [Testing](docs/TESTING.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
-
-## Contributing
-
-- Keep changes tied to a real workflow problem.
-- Prefer small native configs and explicit shell helpers.
-- Update `config/workflow.json` when requirements or deployment paths change.
-- Run `bash scripts/test.sh --profile full` before opening a pull request.
+- [Release evidence](docs/RELEASE_EVIDENCE.md)
