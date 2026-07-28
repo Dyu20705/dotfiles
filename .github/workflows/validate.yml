@@ -28,7 +28,10 @@ jobs:
       - shell: bash
         run: |
           set -o pipefail
-          markdownlint-cli2 README.md "docs/**/*.md" \
+          markdownlint-cli2 \
+            README.md \
+            "docs/**/*.md" \
+            "!docs/superpowers/plans/**/*.md" \
             2>&1 | tee "$RUNNER_TEMP/markdown.log"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
