@@ -1,0 +1,7 @@
+-- Copy to ~/.config/nvim/lua/local.lua; keep private paths and tokens out of Git.
+return {
+  capabilities = {
+    terminal = false,
+    debug = false,
+  },
+}

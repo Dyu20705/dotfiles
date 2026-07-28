@@ -1,0 +1,36 @@
+name: clean-room
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq jq
+      - name: Apply twice, diagnose and restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/home"
+          export XDG_CONFIG_HOME="$HOME/.config"
+          export XDG_CACHE_HOME="$HOME/.cache"
+          export XDG_STATE_HOME="$HOME/.local/state"
+          export XDG_DATA_HOME="$HOME/.local/share"
+          mkdir -p "$HOME"
+          printf '[user]\n\tname = clean-room\n' > "$HOME/.gitconfig"
+          cp "$HOME/.gitconfig" "$RUNNER_TEMP/original-gitconfig"
+          bash scripts/bootstrap.sh --profile minimal
+          bash scripts/bootstrap.sh --profile minimal
+          bash scripts/doctor.sh --profile minimal --json > "$RUNNER_TEMP/doctor.json" || true
+          id=$(bash scripts/backup.sh list --json | jq -r '.[0].id')
+          bash scripts/backup.sh restore "$id"
+          cmp "$RUNNER_TEMP/original-gitconfig" "$HOME/.gitconfig"

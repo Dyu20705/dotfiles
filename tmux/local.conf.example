@@ -1,0 +1,3 @@
+# Copy to ~/.tmux.conf.local for machine-only overrides.
+# set -g status-position top
+# set -g @dotfiles_clipboard osc52
