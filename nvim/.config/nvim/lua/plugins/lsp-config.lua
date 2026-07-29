@@ -2,7 +2,7 @@ return {
     {
         "williamboman/mason.nvim",
     cmd = { "Mason", "MasonInstall", "MasonUninstall", "MasonLog" },
-    config = function() 
+    config = function()
         require("mason").setup()
     end,
     },
