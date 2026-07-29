@@ -1,19 +1,21 @@
--- lua/plugins/auto-session.lua
+local capabilities = require("config.capabilities")
+if not capabilities.enabled("session") then
+  return {}
+end
+
 return {
-  'rmagatti/auto-session',
+  "rmagatti/auto-session",
   lazy = true,
   priority = 5,
   opts = {
-    log_level = 'error',
-    auto_session_suppress_dirs = { '~/', '/', '~/.local/share/nvim' },
+    log_level = "error",
+    auto_session_suppress_dirs = { "~/", "/", "~/.local/share/nvim" },
     auto_save_enabled = true,
-    auto_restore_enabled = false, -- disable automatic restore on startup
+    auto_restore_enabled = false,
     cwd_change_handling = true,
-    pre_save_cmds = { 'Neotree close' },   -- đóng neo-tree trước khi lưu
-    post_restore_cmds = { 'Neotree filesystem reveal left' },
   },
   keys = {
-    { '<leader>ws', '<cmd>SessionSave<CR>', desc = 'Lưu session thủ công' },
-    { '<leader>wr', '<cmd>SessionRestore<CR>', desc = 'Phục hồi session' },
+    { "<leader>ws", "<cmd>SessionSave<cr>", desc = "Save editor session" },
+    { "<leader>wr", "<cmd>SessionRestore<cr>", desc = "Restore editor session" },
   },
 }

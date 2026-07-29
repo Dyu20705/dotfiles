@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib/common.sh"
+. "$SCRIPT_DIR/lib/context.sh"
+COMMANDS=(status install link packages doctor check bench backup uninstall env capability)
+
+usage() {
+  cat <<'EOF'
+Usage: dot <command> [arguments]
+
+Commands:
+  status                              Fast side-effect-free summary
+  install [--profile P]               Link the selected profile
+  link [--profile P] [--dry-run]      Deploy manifest symlinks
+  packages [--profile P] [--dry-run]  Install Ubuntu packages separately
+  doctor [--profile P] [--json]       Diagnose tools, links and capabilities
+  check [static|runtime|full]          Run repository checks
+  bench [--json]                      Measure startup budgets
+  backup list|restore <id>             List or restore recorded backups
+  uninstall [--profile P]             Remove only repository-owned links
+  env [--json]                        Show effective non-secret configuration
+  capability list|enable|disable|doctor <id>
+
+Exit codes: 0 success, 10 optional degradation, 20 usage/config, 30 hard failure.
+EOF
+}
+print_commands() { printf '%s\n' "${COMMANDS[@]}"; }
+
+env_json() {
+  local context profile selected_json active_json revision
+  context=$(dotfiles_detect_context)
+  profile=$(dotfiles_effective_profile "$context")
+  selected_json=$(dotfiles_selected_capabilities | jq -Rsc 'split("\n") | map(select(length > 0))')
+  active_json=$(dotfiles_active_capabilities "$profile" | jq -Rsc 'split("\n") | map(select(length > 0))')
+  revision=$(git -C "$DOTFILES_ROOT" rev-parse --short HEAD 2>/dev/null || printf unknown)
+  jq -n --arg root "$DOTFILES_ROOT" --arg revision "$revision" --arg profile "$profile" \
+    --arg context "$context" --arg config_home "$(xdg_config_home)" \
+    --arg cache_home "$(xdg_cache_home)" --arg state_home "$(xdg_state_home)" \
+    --arg data_home "$(xdg_data_home)" --argjson capabilities "$selected_json" \
+    --argjson active_capabilities "$active_json" \
+    '{root:$root,revision:$revision,profile:$profile,context:$context,capabilities:$capabilities,active_capabilities:$active_capabilities,xdg:{config:$config_home,cache:$cache_home,state:$state_home,data:$data_home}}'
+}
+command_status() {
+  local report summary code
+  report=$(env_json)
+  printf 'Dotfiles status\n'
+  printf '%s\n' "$report" | jq -r '"  revision: \(.revision)\n  profile:  \(.profile)\n  context:  \(.context)\n  packs:    \(.active_capabilities | if length == 0 then "none" else join(",") end)"'
+  set +e
+  summary=$(bash "$SCRIPT_DIR/doctor.sh" --profile "$(printf '%s\n' "$report" | jq -r .profile)" --json 2>/dev/null)
+  code=$?
+  set -e
+  [ -n "$summary" ] && printf '%s\n' "$summary" | jq -r '"  doctor:   \(.summary.failures) failure(s), \(.summary.warnings) warning(s)"'
+  [ "$code" -eq 0 ] || return "$DOTFILES_EXIT_DEGRADED"
+}
+command_env() {
+  if [ "${1:-}" = --json ]; then env_json
+  else env_json | jq -r '"root=\(.root)\nrevision=\(.revision)\nprofile=\(.profile)\ncontext=\(.context)\ncapabilities=\(.capabilities|join(","))\nactive_capabilities=\(.active_capabilities|join(","))\nxdg_config=\(.xdg.config)\nxdg_cache=\(.xdg.cache)\nxdg_state=\(.xdg.state)\nxdg_data=\(.xdg.data)"'
+  fi
+}
+capability_file_write() {
+  local id=$1 mode=$2 file tmp
+  dotfiles_capability_known "$id" || die "unknown capability: $id" 20
+  file=$(dotfiles_capability_file)
+  mkdir -p "$(dirname "$file")"
+  tmp=$(mktemp)
+  {
+    dotfiles_selected_capabilities || true
+    if [ "$mode" = enable ]; then printf '%s\n' "$id"; fi
+  } | awk -v id="$id" -v mode="$mode" 'NF && !(mode == "disable" && $0 == id) { print }' | sort -u > "$tmp"
+  mv "$tmp" "$file"
+}
+command_capability() {
+  local sub=${1:-} doctor
+  case "$sub" in
+    list) jq -r '.capability_packs[]' "$DOTFILES_MANIFEST" ;;
+    enable|disable) [ $# -ge 2 ] || die "$sub requires an id" 20; capability_file_write "$2" "$sub"; printf '%s: %s\n' "$sub" "$2" ;;
+    doctor) [ $# -ge 2 ] || die "doctor requires an id" 20; dotfiles_capability_known "$2" || die "unknown capability: $2" 20; doctor="$DOTFILES_ROOT/capabilities/$2/doctor.sh"; [ -x "$doctor" ] || die "capability doctor missing: $2"; bash "$doctor" ;;
+    -h|--help|"") printf 'Usage: dot capability list|enable|disable|doctor <id>\n' ;;
+    *) die "unknown capability command: $sub" 20 ;;
+  esac
+}
+
+[ $# -gt 0 ] || { usage; exit 20; }
+case "$1" in
+  --help|-h) usage ;;
+  --commands) print_commands ;;
+  status) shift; command_status "$@" ;;
+  install|link) shift; exec bash "$SCRIPT_DIR/bootstrap.sh" "$@" ;;
+  packages) shift; exec bash "$SCRIPT_DIR/packages.sh" "$@" ;;
+  doctor)
+    shift
+    profile=$(dotfiles_effective_profile "$(dotfiles_detect_context)")
+    has_profile=0
+    for arg in "$@"; do [ "$arg" = --profile ] && has_profile=1; done
+    if [ "$has_profile" -eq 1 ]; then exec bash "$SCRIPT_DIR/doctor.sh" "$@"; else exec bash "$SCRIPT_DIR/doctor.sh" --profile "$profile" "$@"; fi
+    ;;
+  check) shift; exec bash "$SCRIPT_DIR/test.sh" --profile "${1:-full}" ;;
+  bench) shift; exec bash "$SCRIPT_DIR/benchmark.sh" "$@" ;;
+  backup) shift; exec bash "$SCRIPT_DIR/backup.sh" "$@" ;;
+  uninstall) shift; exec bash "$SCRIPT_DIR/uninstall.sh" "$@" ;;
+  env) shift; command_env "$@" ;;
+  capability) shift; command_capability "$@" ;;
+  *) die "unknown command: $1" 20 ;;
+esac

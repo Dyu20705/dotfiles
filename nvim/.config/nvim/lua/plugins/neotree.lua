@@ -1,3 +1,8 @@
+local capabilities = require("config.capabilities")
+if not capabilities.enabled("filetree") then
+  return {}
+end
+
 return {
   {
     "nvim-neo-tree/neo-tree.nvim",
@@ -9,22 +14,18 @@ return {
       "nvim-tree/nvim-web-devicons",
     },
     keys = {
-      { "<leader>v", "<cmd>Neotree filesystem reveal left<cr>", desc = "Neo-tree Reveal" },
+      { "<leader>v", "<cmd>Neotree filesystem reveal left<cr>", desc = "Neo-tree reveal" },
     },
-    config = function()
-      require("neo-tree").setup({
-        filesystem = {
-          use_libuv_file_watcher = true,
-          follow_current_file = {
-            enabled = true,
-          },
+    opts = {
+      filesystem = {
+        use_libuv_file_watcher = true,
+        follow_current_file = { enabled = true },
+      },
+      window = {
+        mappings = {
+          ["<LeftMouse>"] = "open",
         },
-        window = {
-          mappings = {
-            ["<LeftMouse>"] = "open",
-          },
-        },
-      })
-    end,
+      },
+    },
   },
 }

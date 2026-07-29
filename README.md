@@ -1,103 +1,161 @@
 # Dotfiles
 
-[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-111827?style=flat-square)](https://github.com/Dyu20705/dotfiles)
-[![Shell](https://img.shields.io/badge/shell-zsh%20%2B%20bash-2a2a2a?style=flat-square)](https://github.com/Dyu20705/dotfiles)
-[![Editor](https://img.shields.io/badge/editor-Neovim-57a143?style=flat-square)](https://github.com/Dyu20705/dotfiles)
-[![Terminal](https://img.shields.io/badge/terminal-WezTerm%20%2B%20tmux-0f172a?style=flat-square)](https://github.com/Dyu20705/dotfiles)
+Ubuntu-first terminal workstation built around WezTerm, tmux, Bash/Zsh,
+Neovim and Git. The current v0 prioritizes a short usable path, rollback and
+diagnostics; deeper redesign can replace internals behind the stable commands.
 
-Terminal-first dotfiles for developers who spend most of the day in a shell, tmux, and Neovim. The setup favors predictable startup, low-noise defaults, and a workflow that stays fast on Linux and macOS.
+## Quick start
 
-## Overview
-
-This repository configures a small, coherent stack rather than a pile of unrelated tools. WezTerm is the entrypoint, tmux owns sessions and panes, the shell stays mode-aware, and Neovim handles editing, review, tests, and debugging.
-
-It is a good fit if you want:
-
-- a tmux-first terminal workflow
-- a Neovim setup that favors lazy loading and explicit keymaps
-- deterministic Git defaults with both CLI and TUI review paths
-- light Docker workflow support through LazyDocker
-
-## Stack Overview
-
-| Layer | Role | Primary files |
-| --- | --- | --- |
-| Terminal | WezTerm entrypoint, background/media helpers | [wezterm/.wezterm.lua](wezterm/.wezterm.lua) |
-| Session layer | Pane, window, and session orchestration | [tmux/tmux.conf](tmux/tmux.conf) |
-| Shell | Mode-aware Zsh and Bash startup | [zsh/.zshrc](zsh/.zshrc), [bash/.bashrc](bash/.bashrc) |
-| Editor | Neovim with lazy-loaded plugin modules | [nvim/.config/nvim/init.lua](nvim/.config/nvim/init.lua) |
-| Git | Deterministic Git defaults and review helpers | [git/.gitconfig](git/.gitconfig), [lazygit/config.yml](lazygit/config.yml) |
-| Containers | LazyDocker via Compose | [docker-compose.yaml](docker-compose.yaml) |
-
-## Core Workflow
-
-1. Open WezTerm. It starts tmux automatically when tmux is available.
-2. Attach or create a session with tmux's session chooser.
-3. Split panes for editor, logs, tests, and shell commands.
-4. Open Neovim for edits, search, Git review, and test runs.
-5. Use Git or LazyGit for staging and commits, then validate before push.
-
-## Repository Structure
-
-```text
-.
-├── bash/
-├── docker-compose.yaml
-├── git/
-├── lazygit/
-├── nvim/
-├── tmux/
-├── wezterm/
-└── zsh/
-```
-
-## Installation
-
-The repo does not ship a bootstrap script. Clone it somewhere stable, then symlink the configs you want to use.
+`jq` and Git are the only bootstrap prerequisites.
 
 ```bash
-git clone https://github.com/Dyu20705/dotfiles.git ~/dotfiles
+git clone https://github.com/Dyu20705/dotfiles.git ~/src/dotfiles
+cd ~/src/dotfiles
 
-ln -sf ~/dotfiles/zsh/.zshrc ~/.zshrc
-ln -sf ~/dotfiles/bash/.bashrc ~/.bashrc
-ln -sf ~/dotfiles/bash/.bash_profile ~/.bash_profile
-ln -sf ~/dotfiles/bash/.bash_env ~/.bash_env
-ln -sf ~/dotfiles/bash/.bash_aliases ~/.bash_aliases
-ln -sf ~/dotfiles/tmux/tmux.conf ~/.tmux.conf
-ln -sf ~/dotfiles/wezterm/.wezterm.lua ~/.wezterm.lua
-ln -sf ~/dotfiles/git/.gitconfig ~/.gitconfig
-mkdir -p ~/.config/lazygit ~/.config/nvim
-ln -sf ~/dotfiles/lazygit/config.yml ~/.config/lazygit/config.yml
-ln -sf ~/dotfiles/nvim/.config/nvim ~/.config/nvim
+# Inspect the Ubuntu transaction without changing the machine.
+bash scripts/dot packages --profile normal --dry-run
+
+# Install packages explicitly when ready, then deploy links.
+bash scripts/dot packages --profile normal --yes
+bash scripts/dot install --profile normal
+
+# The command is now linked into ~/.local/bin.
+dot doctor
+dot check runtime
 ```
 
-If you use Bash from a different checkout path, set `DOTFILES_ROOT` so the Bash wrappers can find the repo.
-
-## Tooling Highlights
-
-| Area | Highlights |
-| --- | --- |
-| tmux | `Ctrl+A` prefix, session chooser, cached status, save/restore bindings, nested prefix forwarding |
-| Neovim | `Telescope`, `Gitsigns`, `Neogit`, `Diffview`, `Flash`, `Neotest`, `DAP`, `ToggleTerm`, `render-markdown` |
-| Git | `histogram` diff, `zdiff3` merges, deterministic pager/editor defaults, simple aliases |
-| Shell | Remote-aware shell mode, idempotent PATH handling, small alias set, optional prompt tooling |
-| WezTerm | tmux-first startup, optional background/media behavior, tmux prefix forwarding keys |
-| Docker | `docker-compose.yaml` service for LazyDocker with the Docker socket mounted |
-
-## Contributing
-
-- Keep changes tied to actual config and commands.
-- Prefer small, atomic commits.
-- Run `git diff --check` before pushing.
-- Keep local docs, benchmarks, and generated assets out of commits unless they are intentionally part of the repo.
-
-## Validation
-
-Useful local checks:
+Create private Git identity after deployment:
 
 ```bash
-git status
-git diff --check
+cp git/.gitconfig.local.example ~/.gitconfig.local
+$EDITOR ~/.gitconfig.local
 ```
 
-CI runs markdown, shell, YAML, and Lua validation so changes stay reproducible.
+## Daily workflow
+
+```bash
+dot status
+dev --list
+dev my-project
+
+gw new issue-123 main
+gw status
+gw open issue-123
+```
+
+`dev` discovers Git repositories beneath `DOTFILES_PROJECT_DIRS`, uses `fzf`
+when available and otherwise accepts a refined query. It attaches to one stable
+tmux session per canonical project path.
+
+`gw` is a thin offline Git worktree guard. It refuses duplicate checked-out
+branches and dirty removal unless `--force` is explicit. It never fetches,
+deletes branches or merges.
+
+## Profiles and contexts
+
+Profiles control feature breadth:
+
+- `minimal`: Bash, Git, operator command and recovery path;
+- `normal`: daily Zsh, tmux and Neovim workflow;
+- `full`: normal plus WezTerm, LazyGit and optional media/container helpers.
+
+Contexts describe the machine: `desktop`, `laptop`, `server` and `remote`.
+SSH, CI and headless sessions conservatively resolve to minimal mode unless
+`DOTFILES_ALLOW_FULL_REMOTE=1` is explicit.
+
+Inspect the effective non-secret state:
+
+```bash
+dot env
+dot env --json | jq
+```
+
+## Backup, restore and uninstall
+
+Every mutating bootstrap run records a manifest beneath
+`${XDG_STATE_HOME:-~/.local/state}/dotfiles/backups`.
+
+```bash
+dot backup list
+dot backup restore <id>
+dot uninstall --profile normal --dry-run
+dot uninstall --profile normal
+```
+
+Restore refuses a path changed after deployment unless `--force` is supplied.
+Uninstall removes only symlinks that still point into this checkout.
+
+## tmux and Neovim
+
+- tmux prefix: `Ctrl+A`;
+- reload: `Ctrl+A`, then `r`;
+- system clipboard paste: `Ctrl+A`, then `p`;
+- `Ctrl+V` remains owned by applications;
+- Neovim find namespace: `<leader>f`;
+- Git namespace: `<leader>g`;
+- diagnostics/lint namespace: `<leader>x`.
+
+TPM is optional. Core tmux works without it:
+
+```bash
+bash scripts/install-tmux-plugins.sh --check
+bash scripts/install-tmux-plugins.sh --install
+```
+
+Extended Neovim owners such as terminal, tests, DAP UI, file tree and broad Git
+UI remain capability-gated rather than normal-startup dependencies.
+
+## Capability packs and private overlays
+
+Enable the read-only system inspection demonstration pack:
+
+```bash
+dot capability list
+dot capability enable system
+dot capability doctor system
+dot capability disable system
+```
+
+Private values belong outside Git. Examples are provided for shell/context,
+tmux, Neovim, WezTerm and Git identity. Minimal mode never loads capability
+packs.
+
+## Verification
+
+```bash
+dot check static
+dot check runtime
+dot check full
+bash scripts/test-v0.sh
+dot bench --json | jq
+bash scripts/security-check.sh
+```
+
+CI runs Markdown, static contracts, Ubuntu/macOS runtime smoke tests, Ubuntu
+clean-room deployment and security checks. GUI rendering, physical key routing,
+Wayland/X11/OSC52 clipboard behavior, media playback and private assets require
+manual workstation acceptance.
+
+## LazyDocker fallback
+
+Prefer a native LazyDocker release. The Compose helper is pinned and mounts the
+Docker socket, which grants powerful host control:
+
+```bash
+docker compose run --rm lazydocker
+```
+
+Override `LAZYDOCKER_IMAGE` only after verifying an explicit tag or digest.
+
+## Documentation
+
+- [Cheat sheet](docs/CHEATSHEET.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Git and worktrees](docs/GIT_WORKFLOW.md)
+- [Keymaps](docs/KEYMAPS.md)
+- [Neovim plugin audit](docs/NEOVIM_PLUGINS.md)
+- [Security](docs/SECURITY.md)
+- [Benchmarks](docs/BENCHMARKS.md)
+- [Testing](docs/TESTING.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Release evidence](docs/RELEASE_EVIDENCE.md)

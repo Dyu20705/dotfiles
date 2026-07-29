@@ -1,0 +1,2 @@
+#compdef dot
+_arguments '1:command:(status install link packages doctor check bench backup uninstall env capability)' '*::arg:->args'

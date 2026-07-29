@@ -1,42 +1,36 @@
 #!/usr/bin/env bash
-# sessions_cache.sh — build a compact session list suitable for tmux status-left
-# Output example: [1:dev] [2:notes] [3:server] with the active session highlighted
-
 set -euo pipefail
 
-OUTFILE="$XDG_CACHE_HOME"/tmux_sessions
-TMP=$(mktemp)
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+CACHE_DIR="${TMUX_CACHE_DIR:-$CACHE_HOME/dotfiles/tmux}"
+OUTFILE="${TMUX_SESSIONS_CACHE:-$CACHE_DIR/sessions.txt}"
+TMP=$(mktemp "${TMPDIR:-/tmp}/dotfiles-tmux-sessions.XXXXXX")
+trap 'rm -f "$TMP"' EXIT
+
 CURRENT=$(tmux display-message -p '#S' 2>/dev/null || true)
+mkdir -p "$CACHE_DIR"
 
 format_session() {
-  idx="$1"
-  name="$2"
+  local idx=$1
+  local name=$2
   if [ "$name" = "$CURRENT" ]; then
-    # highlighted active session
-    printf "#[reverse] [%s:%s] #[default] " "$idx" "$name"
+    printf '#[reverse] [%s:%s] #[default] ' "$idx" "$name"
   else
-    printf "[%s:%s] " "$idx" "$name"
+    printf '[%s:%s] ' "$idx" "$name"
   fi
 }
 
-# Build list
 {
-  while IFS= read -r line; do
-    idx=$(echo "$line" | awk -F: '{print $1}')
-    name=$(echo "$line" | awk -F: '{print $2}')
+  while IFS=$'\t' read -r idx name; do
+    [ -n "$idx" ] || continue
     format_session "$idx" "$name"
-  done < <(tmux list-sessions -F "#{session_index}:#{session_name}" 2>/dev/null | sort -n)
-  echo
+  done < <(tmux list-sessions -F $'#{session_index}\t#{session_name}' 2>/dev/null | sort -n -k1,1)
+  printf '\n'
 } > "$TMP"
 
-mkdir -p "$(dirname "$OUTFILE")"
 mv "$TMP" "$OUTFILE"
-chmod 644 "$OUTFILE"
+chmod 600 "$OUTFILE"
+trap - EXIT
 
-# Also push into tmux option for immediate availability
-VAL=$(cat "$OUTFILE" 2>/dev/null || true)
-if [ -n "$VAL" ]; then
-  tmux set-option -gq @tmux_sessions "$VAL" 2>/dev/null || true
-fi
-
-exit 0
+VALUE=$(tr -d '\n' < "$OUTFILE" 2>/dev/null || true)
+tmux set-option -gq @tmux_sessions "$VALUE" 2>/dev/null || true

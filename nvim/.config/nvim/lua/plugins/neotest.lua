@@ -1,24 +1,35 @@
--- Chạy test thông minh: test gần nhất, file, suite; output dạng danh sách
+local capabilities = require("config.capabilities")
+if not capabilities.enabled("test") then
+  return {}
+end
+
 return {
-  'nvim-neotest/neotest',
+  "nvim-neotest/neotest",
   dependencies = {
-    'nvim-lua/plenary.nvim',
-    'nvim-treesitter/nvim-treesitter',
-    -- adapters do người dùng tự thêm (ví dụ: neotest-rust, neotest-cpp)
+    "nvim-lua/plenary.nvim",
+    "nvim-treesitter/nvim-treesitter",
   },
-  cmd = 'Neotest',
+  cmd = "Neotest",
   keys = {
-    { '<leader>tn', function() require('neotest').run.run() end,             desc = 'Chạy test gần nhất' },
-    { '<leader>tf', function() require('neotest').run.run(vim.fn.expand('%')) end, desc = 'Chạy test file' },
-    { '<leader>ts', function() require('neotest').run.run(vim.loop.cwd()) end, desc = 'Chạy cả suite' },
-    { '<leader>to', '<cmd>Neotest output<CR>',                               desc = 'Xem output test' },
-    { '<leader>tp', '<cmd>Neotest summary<CR>',                              desc = 'Tóm tắt test' },
+    {
+      "<leader>tn",
+      function()
+        require("neotest").run.run()
+      end,
+      desc = "Run nearest configured test",
+    },
+    {
+      "<leader>tf",
+      function()
+        require("neotest").run.run(vim.fn.expand("%"))
+      end,
+      desc = "Run current test file",
+    },
+    { "<leader>to", "<cmd>Neotest output<cr>", desc = "Test output" },
+    { "<leader>tp", "<cmd>Neotest summary<cr>", desc = "Test summary" },
   },
   opts = {
-    adapters = {
-      -- require('neotest-rust'),   -- yêu cầu cài đặt adapter trước
-      -- require('neotest-cpp'),
-    },
+    adapters = {},
     status = { virtual_text = true },
     output = { open_on_run = true },
   },

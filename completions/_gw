@@ -1,0 +1,2 @@
+#compdef gw
+_arguments '1:command:(list status new open remove prune --help)' '*::arg:'

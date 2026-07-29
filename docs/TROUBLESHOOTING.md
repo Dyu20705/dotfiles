@@ -1,0 +1,126 @@
+# Troubleshooting
+
+## Start with diagnostics
+
+```bash
+bash scripts/doctor.sh --profile normal
+bash scripts/doctor.sh --profile normal --json | jq '.checks[] | select(.status != "ok")'
+```
+
+## Shell becomes minimal unexpectedly
+
+Run `dotfiles-shell-diagnostics`. `remote=1` should only be caused by SSH or CI.
+Being inside tmux sets `in_tmux=1` but does not reduce the feature mode.
+
+Explicit overrides:
+
+```bash
+DOTFILES_SHELL_MODE=minimal zsh
+DOTFILES_SHELL_MODE=full zsh
+```
+
+## tmux config does not reload
+
+```bash
+tmux source-file ~/.tmux.conf
+tmux show-options -gqv @tmux_root
+tmux display-message -p '#{config_file}'
+```
+
+Run the isolated smoke test without touching the active server:
+
+```bash
+bash scripts/test.sh --profile runtime
+```
+
+TPM is optional. Install it under `~/.tmux/plugins/tpm` and press `Prefix+I` to
+install configured plugins.
+
+## Clipboard paste is empty
+
+Install one clipboard reader for the current platform:
+
+- Wayland: `wl-paste`
+- X11: `xclip`
+- macOS: `pbpaste`
+- WSL: PowerShell
+
+Use `Prefix+p`; `Ctrl+V` belongs to the active application.
+
+## Neovim first launch fails
+
+Requirements:
+
+- Neovim 0.11.3 or newer.
+- Git available in `PATH`.
+- Network access for the first lazy.nvim clone.
+
+Recovery:
+
+```bash
+rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/lazy.nvim"
+nvim
+```
+
+Disable network bootstrap for diagnostics:
+
+```bash
+DOTFILES_NVIM_BOOTSTRAP=0 nvim --headless -u nvim/.config/nvim/init.lua '+qa'
+```
+
+Then run `:checkhealth`, `:Lazy sync`, `:Mason` and `:ConformInfo` interactively.
+
+## LazyGit cannot open a file or URL
+
+Bootstrap links `scripts/open.sh` to `~/.local/bin/dotfiles-open`. Confirm that
+`~/.local/bin` is in `PATH` and run:
+
+```bash
+dotfiles-open .
+```
+
+## WezTerm has no background or media controls
+
+Normal mode selects the first readable supported background deterministically.
+Check the isolated fixtures first:
+
+```bash
+bash scripts/check-wezterm.sh
+```
+
+Then set machine-local overrides if assets live elsewhere:
+
+```bash
+export DOTFILES_WEZTERM_BG_DIR=/path/to/backgrounds
+export DOTFILES_WEZTERM_MUSIC_DIR=/path/to/music
+export DOTFILES_WEZTERM_DEFAULT_TRACK=/path/to/music/default.mp3
+wezterm
+```
+
+Supported backgrounds are PNG, JPEG and WebP. Music requires `mpv`; volume uses
+`wpctl` when present and otherwise `pactl`. Minimal mode intentionally performs
+no asset discovery and provides no media actions.
+
+## Git asks for identity
+
+The public config intentionally does not contain personal identity:
+
+```bash
+cp git/.gitconfig.local.example ~/.gitconfig.local
+$EDITOR ~/.gitconfig.local
+git config --show-origin --get-regexp '^user\.'
+```
+
+## LazyDocker warning
+
+Prefer the current native LazyDocker release. The optional Compose helper uses
+Docker Hub's explicit `latest` tag because that repository does not expose tags
+matching current GitHub releases:
+
+```bash
+LAZYDOCKER_IMAGE_TAG=latest docker compose run --rm lazydocker
+```
+
+The helper mounts `/var/run/docker.sock`, which grants powerful Docker daemon
+access. Only run a trusted image. Do not set `LAZYDOCKER_IMAGE_TAG` to a release
+name until that exact tag has been verified in the registry.

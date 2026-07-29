@@ -1,0 +1,6 @@
+# Copy selected values to ~/.config/dotfiles/local.env; do not commit secrets.
+DOTFILES_PROFILE=normal
+DOTFILES_CONTEXT=desktop
+DOTFILES_PROJECT_DIRS="$HOME/src:$HOME/projects:$HOME/study"
+# DOTFILES_WEZTERM_BG_DIR="$HOME/Pictures/backgrounds"
+# DOTFILES_WEZTERM_MUSIC_DIR="$HOME/Music"

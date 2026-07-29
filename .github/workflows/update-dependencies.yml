@@ -1,0 +1,44 @@
+name: update-dependencies
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 1 * *'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq jq neovim
+      - name: Refresh lock file in isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XDG_DATA_HOME="$RUNNER_TEMP/data"
+          export XDG_STATE_HOME="$RUNNER_TEMP/state"
+          export XDG_CACHE_HOME="$RUNNER_TEMP/cache"
+          DOTFILES_NVIM_BOOTSTRAP=1 nvim --headless -u nvim/.config/nvim/init.lua '+Lazy! sync' '+qa' || true
+          bash scripts/test.sh --profile static
+      - name: Open draft PR when files changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet && exit 0
+          branch="automation/dependency-refresh-$(date +%Y%m%d)"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git switch -c "$branch"
+          git add nvim/.config/nvim/lazy-lock.json
+          git commit -m 'chore: refresh dependency locks'
+          git push origin "$branch"
+          gh pr create --draft --title 'chore: refresh dependency locks' --body 'Automated lock refresh; requires human review.' --base main --head "$branch"

@@ -1,12 +1,14 @@
 services:
   lazydocker:
-    image: lazyteam/lazydocker:latest
-    container_name: lazydocker
+    # Pinned fallback for reproducibility. Prefer the current native binary.
+    # Override LAZYDOCKER_IMAGE only after verifying the image or digest.
+    image: ${LAZYDOCKER_IMAGE:-lazyteam/lazydocker:0.24.1}
     stdin_open: true
     tty: true
     environment:
       TERM: xterm-256color
       COLORTERM: truecolor
     volumes:
+      # Docker socket access is effectively host-level Docker control.
       - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/.config/jesseduffield/lazydocker:/.config/jesseduffield/lazydocker
+      - ${HOME}/.config/jesseduffield/lazydocker:/root/.config/jesseduffield/lazydocker:ro

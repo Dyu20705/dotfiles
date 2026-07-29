@@ -1,0 +1,2 @@
+_dot_complete() { local current=${COMP_WORDS[COMP_CWORD]}; local commands='status install link packages doctor check bench backup uninstall env capability'; if [ "$COMP_CWORD" -eq 1 ]; then COMPREPLY=($(compgen -W "$commands" -- "$current")); elif [ "${COMP_WORDS[1]}" = check ]; then COMPREPLY=($(compgen -W 'static runtime full' -- "$current")); elif [ "${COMP_WORDS[1]}" = capability ]; then COMPREPLY=($(compgen -W 'list enable disable doctor' -- "$current")); fi; }
+complete -F _dot_complete dot
