@@ -31,42 +31,110 @@ list_backups() {
   [ "$format" = json ] && printf ']\n'
 }
 
-restore_backup() {
-  local id=$1 force=${2:-0} dir="$BACKUP_BASE/$1" manifest="$BACKUP_BASE/$1/manifest.tsv"
-  local operation target source backup conflict
-  [ -f "$manifest" ] || die "backup not found or incomplete: $id" 20
+validate_backup_id() {
+  local id=$1
+  case "$id" in
+    ""|.|..|*/*|*\\*|*[!A-Za-z0-9._-]*)
+      die "invalid backup id: $id" 20
+      ;;
+  esac
+}
+
+preflight_restore() {
+  local dir=$1 manifest=$2 force=$3
+  local operation target source backup
+
   while IFS=$'\t' read -r operation target source backup; do
     [ -n "$target" ] || continue
-    case "$target" in "$HOME"/*) ;; *) die "backup target outside HOME: $target" ;; esac
+
+    case "$operation" in
+      create|replace) ;;
+      *) die "unknown backup operation: $operation" 20 ;;
+    esac
+
+    case "$target" in
+      "$HOME"/*) ;;
+      *) die "backup target outside HOME: $target" 20 ;;
+    esac
+
+    [ -n "$source" ] || die "backup source is empty for target: $target" 20
+
+    if [ "$operation" = replace ]; then
+      case "$backup" in
+        "$dir"/*) ;;
+        *) die "recorded backup is outside its run directory: $backup" 20 ;;
+      esac
+      [ -e "$backup" ] || [ -L "$backup" ] \
+        || die "recorded backup is missing: $backup" 30
+    fi
+
     if [ -e "$target" ] || [ -L "$target" ]; then
-      if [ -L "$target" ] && [ "$(readlink "$target" 2>/dev/null || true)" = "$source" ]; then
-        rm "$target"
-      elif [ "$force" -eq 1 ]; then
-        conflict="$target.pre-restore-$(date +%Y%m%d-%H%M%S)"
-        mv "$target" "$conflict"
-        warn "moved current path to $conflict"
-      else
+      if [ -L "$target" ] \
+        && [ "$(readlink "$target" 2>/dev/null || true)" = "$source" ]; then
+        :
+      elif [ "$force" -ne 1 ]; then
         die "refusing to replace changed path: $target (use --force)" 30
       fi
     fi
+  done < "$manifest"
+}
+
+restore_backup() {
+  local id=$1 force=${2:-0}
+  local dir manifest operation target source backup conflict restored_dir
+
+  validate_backup_id "$id"
+  dir="$BACKUP_BASE/$id"
+  manifest="$dir/manifest.tsv"
+  [ -f "$manifest" ] || die "backup not found or incomplete: $id" 20
+
+  # Validate the entire manifest and all known conflicts before mutating HOME.
+  preflight_restore "$dir" "$manifest" "$force"
+
+  while IFS=$'\t' read -r operation target source backup; do
+    [ -n "$target" ] || continue
+
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      if [ -L "$target" ] \
+        && [ "$(readlink "$target" 2>/dev/null || true)" = "$source" ]; then
+        rm "$target"
+      elif [ "$force" -eq 1 ]; then
+        conflict="$target.pre-restore-$(date +%Y%m%d-%H%M%S)-$$"
+        mv "$target" "$conflict"
+        warn "moved current path to $conflict"
+      else
+        die "restore state changed after preflight: $target" 30
+      fi
+    fi
+
     case "$operation" in
-      create) info "removed managed link: $target" ;;
+      create)
+        info "removed managed link: $target"
+        ;;
       replace)
-        [ -e "$backup" ] || [ -L "$backup" ] || die "recorded backup is missing: $backup"
         mkdir -p "$(dirname "$target")"
         mv "$backup" "$target"
         info "restored $target"
         ;;
-      *) die "unknown backup operation: $operation" ;;
     esac
   done < "$manifest"
-  mv "$dir" "$dir.restored-$(date +%Y%m%d-%H%M%S)"
+
+  restored_dir="$dir.restored-$(date +%Y%m%d-%H%M%S)-$$"
+  mv "$dir" "$restored_dir"
 }
 
 [ $# -gt 0 ] || { usage; exit 20; }
 case "$1" in
-  list) shift; if [ "${1:-}" = --json ]; then list_backups json; else list_backups text; fi ;;
-  restore) [ $# -ge 2 ] || die "restore requires a backup id" 20; force=0; [ "${3:-}" = --force ] && force=1; restore_backup "$2" "$force" ;;
+  list)
+    shift
+    if [ "${1:-}" = --json ]; then list_backups json; else list_backups text; fi
+    ;;
+  restore)
+    [ $# -ge 2 ] || die "restore requires a backup id" 20
+    force=0
+    [ "${3:-}" = --force ] && force=1
+    restore_backup "$2" "$force"
+    ;;
   -h|--help) usage ;;
   *) die "unknown backup command: $1" 20 ;;
 esac
