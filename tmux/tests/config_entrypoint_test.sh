@@ -19,12 +19,16 @@ fail() {
 }
 
 assert_loaded() {
-  local socket=$1 expected_root=$2
-  local actual_root prefix
+  local socket=$1 expected_root=$2 expected_config=$3
+  local actual_root actual_config prefix
 
   actual_root=$(tmux -L "$socket" show-option -gqv @tmux_root)
   [ "$actual_root" = "$expected_root" ] \
     || fail "root mismatch: expected $expected_root, got ${actual_root:-<empty>}"
+
+  actual_config=$(tmux -L "$socket" show-option -gqv @tmux_config)
+  [ "$actual_config" = "$expected_config" ] \
+    || fail "config mismatch: expected $expected_config, got ${actual_config:-<empty>}"
 
   prefix=$(tmux -L "$socket" show-option -gv prefix)
   [ "$prefix" = C-a ] \
@@ -37,6 +41,7 @@ if ! command -v tmux >/dev/null 2>&1; then
 fi
 
 expected_root=$(cd "$TMUX_DIR" && pwd -P)
+expected_config="$expected_root/tmux.conf"
 
 # Direct loading must resolve the canonical config directory.
 direct_home="$TMP/direct-home"
@@ -44,7 +49,7 @@ mkdir -p "$direct_home"
 direct_socket="dotfiles-direct-$$"
 HOME="$direct_home" DOTFILES_ROOT="$ROOT" \
   tmux -L "$direct_socket" -f "$TMUX_DIR/tmux.conf" new-session -d -s test
-assert_loaded "$direct_socket" "$expected_root"
+assert_loaded "$direct_socket" "$expected_root" "$expected_config"
 tmux -L "$direct_socket" kill-server
 
 # The bootstrap contract uses a symlink at ~/.tmux.conf.
@@ -54,7 +59,7 @@ ln -s "$TMUX_DIR/tmux.conf" "$symlink_home/.tmux.conf"
 symlink_socket="dotfiles-symlink-$$"
 HOME="$symlink_home" DOTFILES_ROOT="$ROOT" \
   tmux -L "$symlink_socket" -f "$symlink_home/.tmux.conf" new-session -d -s test
-assert_loaded "$symlink_socket" "$expected_root"
+assert_loaded "$symlink_socket" "$expected_root" "$expected_config"
 tmux -L "$symlink_socket" kill-server
 
 # A copied ~/.tmux.conf must fall back to DOTFILES_ROOT instead of looking for
@@ -65,7 +70,7 @@ cp "$TMUX_DIR/tmux.conf" "$copied_home/.tmux.conf"
 copied_socket="dotfiles-copied-$$"
 HOME="$copied_home" DOTFILES_ROOT="$ROOT" \
   tmux -L "$copied_socket" -f "$copied_home/.tmux.conf" new-session -d -s test
-assert_loaded "$copied_socket" "$expected_root"
+assert_loaded "$copied_socket" "$expected_root" "$copied_home/.tmux.conf"
 tmux -L "$copied_socket" kill-server
 
 printf 'PASS: tmux config entrypoint\n'
