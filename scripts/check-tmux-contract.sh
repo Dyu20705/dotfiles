@@ -7,6 +7,7 @@ WORKFLOW="$ROOT/tmux/workflow.conf"
 PLUGINS="$ROOT/tmux/plugins.conf"
 OBSERVABILITY="$ROOT/tmux/observability.conf"
 NAVIGATOR="$ROOT/nvim/.config/nvim/lua/plugins/vim-tmux-navigator.lua"
+ENTRYPOINT_TEST="$ROOT/tmux/tests/config_entrypoint_test.sh"
 
 tmp=$(mktemp -d)
 cleanup() {
@@ -98,5 +99,7 @@ if grep -Rq '@tmux_nested_level' "$OBSERVABILITY" "$ROOT/tmux"/*.sh; then
   printf 'tmux must not infer a fake numeric nesting depth\n' >&2
   exit 1
 fi
+
+bash "$ENTRYPOINT_TEST"
 
 printf 'check-tmux-contract: PASS\n'
