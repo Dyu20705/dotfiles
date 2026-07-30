@@ -5,8 +5,10 @@ ROOT=${DOTFILES_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 failures=0
 
 tests=(
-  v0_contract_test.sh
-  v0_extended_test.sh
+  repository_contract_test.sh
+  security_check_test.sh
+  whitespace_check_test.sh
+  operator_contract_test.sh
   backup_restore_test.sh
   dev_test.sh
   gw_test.sh
@@ -23,5 +25,5 @@ for name in "${tests[@]}"; do
   fi
 done
 
-printf '\nV0 result: %d failure(s)\n' "$failures"
+printf '\nContract result: %d failure(s)\n' "$failures"
 [ "$failures" -eq 0 ]
