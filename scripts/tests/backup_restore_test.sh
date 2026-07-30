@@ -32,8 +32,10 @@ cmp -s "$original" "$HOME/.gitconfig"
 # backups directory.
 escape_dir="$XDG_STATE_HOME/dotfiles/escape"
 mkdir -p "$escape_dir"
-printf 'create\t%s\t%s\t-\n' "$HOME/traversal-target" "$ROOT/git/.gitconfig" \
+printf 'create\t%s\t%s\t-\n' \
+  "$HOME/traversal-target" "$ROOT/git/.gitconfig" \
   > "$escape_dir/manifest.tsv"
+
 if bash "$ROOT/scripts/backup.sh" restore ../escape >/dev/null 2>&1; then
   printf 'restore accepted a path-traversal backup id\n' >&2
   exit 1
@@ -50,8 +52,9 @@ first_target="$HOME/first-target"
 first_source="$ROOT/git/.gitconfig"
 first_backup="$atomic_dir/first.backup"
 second_target="$HOME/second-target"
-second_source="$ROOT/bash/.bashrc"
+second_source="$ROOT/zsh/.zshrc"
 second_backup="$atomic_dir/second.backup"
+
 printf 'first-original\n' > "$first_backup"
 printf 'second-original\n' > "$second_backup"
 ln -s "$first_source" "$first_target"
@@ -65,6 +68,7 @@ if bash "$ROOT/scripts/backup.sh" restore "$atomic_id" >/dev/null 2>&1; then
   printf 'restore unexpectedly replaced a conflicting path\n' >&2
   exit 1
 fi
+
 [ -L "$first_target" ]
 [ "$(readlink "$first_target")" = "$first_source" ]
 [ -f "$first_backup" ]
