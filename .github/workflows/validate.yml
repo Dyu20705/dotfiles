@@ -50,6 +50,7 @@ jobs:
         with:
           persist-credentials: false
           show-progress: false
+          fetch-depth: 2
       - name: Install validation tools
         run: |
           sudo apt-get update -qq
