@@ -11,6 +11,7 @@ required=(
   scripts/backup.sh
   scripts/uninstall.sh
   scripts/benchmark.sh
+  scripts/check-whitespace.sh
   scripts/install-tmux-plugins.sh
   scripts/security-check.sh
   scripts/test-contracts.sh
