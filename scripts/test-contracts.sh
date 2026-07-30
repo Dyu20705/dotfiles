@@ -6,6 +6,8 @@ failures=0
 
 tests=(
   repository_contract_test.sh
+  security_check_test.sh
+  whitespace_check_test.sh
   operator_contract_test.sh
   backup_restore_test.sh
   dev_test.sh
