@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The single-quoted command snippets below are intentionally expanded by the
-# child Bash/Zsh process, not by this test harness.
+# child Zsh process, not by this test harness.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -44,9 +44,19 @@ case "$PROFILE" in
   *) die "unknown test profile: $PROFILE" ;;
 esac
 
-pass() { printf '[PASS] %s\n' "$1"; }
-fail() { printf '[FAIL] %s\n' "$1" >&2; FAILURES=$((FAILURES + 1)); }
-skip() { printf '[SKIP] %s\n' "$1"; SKIPS=$((SKIPS + 1)); }
+pass() {
+  printf '[PASS] %s\n' "$1"
+}
+
+fail() {
+  printf '[FAIL] %s\n' "$1" >&2
+  FAILURES=$((FAILURES + 1))
+}
+
+skip() {
+  printf '[SKIP] %s\n' "$1"
+  SKIPS=$((SKIPS + 1))
+}
 
 run_check() {
   local name=$1
@@ -58,28 +68,20 @@ run_check() {
   fi
 }
 
-bash_dotfiles() {
-  printf '%s\0' \
-    "$DOTFILES_ROOT/bash/.bashrc" \
-    "$DOTFILES_ROOT/bash/.bash_profile" \
-    "$DOTFILES_ROOT/bash/.profile" \
-    "$DOTFILES_ROOT/bash/.bash_env" \
-    "$DOTFILES_ROOT/bash/.bash_aliases"
-}
-
 shell_scripts() {
-  find "$DOTFILES_ROOT/git" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/scripts" \
+  find \
+    "$DOTFILES_ROOT/git" \
+    "$DOTFILES_ROOT/tmux" \
+    "$DOTFILES_ROOT/scripts" \
+    "$DOTFILES_ROOT/capabilities" \
     -type f -name '*.sh' -print0
-}
-
-shell_files() {
-  bash_dotfiles
-  shell_scripts
 }
 
 check_bash_syntax() {
   local files=()
-  while IFS= read -r -d '' file; do files+=("$file"); done < <(shell_files)
+  while IFS= read -r -d '' file; do
+    files+=("$file")
+  done < <(shell_scripts)
   bash -n "${files[@]}"
 }
 
@@ -89,11 +91,11 @@ check_shellcheck() {
     return 0
   fi
 
-  local dotfiles=() scripts=()
-  while IFS= read -r -d '' file; do dotfiles+=("$file"); done < <(bash_dotfiles)
-  while IFS= read -r -d '' file; do scripts+=("$file"); done < <(shell_scripts)
+  local scripts=()
+  while IFS= read -r -d '' file; do
+    scripts+=("$file")
+  done < <(shell_scripts)
 
-  shellcheck -x --shell=bash "${dotfiles[@]}" || return 1
   shellcheck -x "${scripts[@]}"
 }
 
@@ -102,7 +104,10 @@ check_zsh_syntax() {
     skip "Zsh not installed"
     return 0
   fi
-  zsh -n "$DOTFILES_ROOT/zsh/.zshrc"
+
+  zsh -n \
+    "$DOTFILES_ROOT/zsh/.zshrc" \
+    "$DOTFILES_ROOT/zsh/common.zsh"
 }
 
 check_lua_syntax() {
@@ -118,8 +123,10 @@ check_lua_syntax() {
 
   while IFS= read -r -d '' file; do
     "$lua_parser" -p "$file" || return 1
-  done < <(find "$DOTFILES_ROOT/nvim" "$DOTFILES_ROOT/wezterm" \
-    -type f -name '*.lua' -print0)
+  done < <(
+    find "$DOTFILES_ROOT/nvim" "$DOTFILES_ROOT/wezterm" \
+      -type f -name '*.lua' -print0
+  )
 }
 
 check_json() {
@@ -127,7 +134,7 @@ check_json() {
 }
 
 check_manifest_rejects_unsafe_target() {
-  local tmp_home tmp_manifest outside
+  local tmp_home tmp_manifest outside result
   tmp_home=$(mktemp -d)
   tmp_manifest=$(mktemp)
   outside="${TMPDIR:-/tmp}/dotfiles-unsafe-target-$$"
@@ -175,7 +182,7 @@ check_doctor_json() {
 }
 
 check_doctor_deployment_contract() {
-  local tmp_home tmp_bin output target
+  local tmp_home tmp_bin output target result
   tmp_home=$(mktemp -d)
   tmp_bin=$(mktemp -d)
   target="$tmp_home/.gitconfig"
@@ -248,15 +255,19 @@ check_bootstrap_dry_run() {
 
 checkout_shell_snapshot() {
   find "$DOTFILES_ROOT/scripts" "$DOTFILES_ROOT/tmux" "$DOTFILES_ROOT/git" \
-    -type f -name '*.sh' -print | sort | while IFS= read -r file; do
-      if [ -x "$file" ]; then
-        executable=x
-      else
-        executable=-
-      fi
-      checksum=$(cksum "$file")
-      printf '%s\t%s\t%s\n' "$file" "$executable" "$checksum"
-    done | cksum
+    "$DOTFILES_ROOT/capabilities" \
+    -type f -name '*.sh' -print \
+    | sort \
+    | while IFS= read -r file; do
+        if [ -x "$file" ]; then
+          executable=x
+        else
+          executable=-
+        fi
+        checksum=$(cksum "$file")
+        printf '%s\t%s\t%s\n' "$file" "$executable" "$checksum"
+      done \
+    | cksum
 }
 
 check_bootstrap_preserves_checkout() {
@@ -285,6 +296,7 @@ check_yaml() {
     skip "yamllint not installed"
     return 0
   fi
+
   yamllint -d relaxed \
     "$DOTFILES_ROOT/docker-compose.yaml" \
     "$DOTFILES_ROOT/lazygit/config.yml" \
@@ -302,9 +314,15 @@ check_compose() {
 check_hardcoded_paths() {
   local matches
   # The expression intentionally matches the literal text `$HOME`.
-  matches=$(git -C "$DOTFILES_ROOT" grep -nE \
-    '(\$HOME/dotfiles|~/dotfiles|/home/[^/]+/|Documents/git)' -- \
-    ':!README.md' ':!docs/**' ':!scripts/test.sh' 2>/dev/null || true)
+  matches=$(
+    git -C "$DOTFILES_ROOT" grep -nE \
+      '(\$HOME/dotfiles|~/dotfiles|/home/[^/]+/|/Users/[^/]+/|Documents/git)' -- \
+      ':!README.md' \
+      ':!docs/**' \
+      ':!scripts/test.sh' \
+      ':!scripts/security-check.sh' \
+      ':!scripts/tests/**' 2>/dev/null || true
+  )
   if [ -n "$matches" ]; then
     printf '%s\n' "$matches" >&2
     return 1
@@ -313,26 +331,37 @@ check_hardcoded_paths() {
 
 check_keymap_contract() {
   local nvim_navigator_count test_file_count tmux_navigator_count
-  test_file_count=$(grep -RhoE "['\"]<leader>tf['\"]" \
-    "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null \
-    | wc -l | tr -d ' ')
+
+  test_file_count=$(
+    grep -RhoE "['\"]<leader>tf['\"]" \
+      "$DOTFILES_ROOT/nvim/.config/nvim/lua" 2>/dev/null \
+      | wc -l \
+      | tr -d ' '
+  )
   if [ "$test_file_count" -gt 1 ]; then
     printf '<leader>tf is declared %s times\n' "$test_file_count" >&2
     return 1
   fi
 
   if grep -RqsE '^bind(-key)?[[:space:]]+-n[[:space:]]+C-v' \
-    "$DOTFILES_ROOT/tmux"
-  then
+    "$DOTFILES_ROOT/tmux"; then
     printf 'tmux must not steal Ctrl+V from applications\n' >&2
     return 1
   fi
 
-  nvim_navigator_count=$(grep -Rhl 'christoomey/vim-tmux-navigator' \
-    "$DOTFILES_ROOT/nvim/.config/nvim/lua/plugins" 2>/dev/null | wc -l | tr -d ' ')
-  tmux_navigator_count=$(grep -Fhc "set -g @plugin 'christoomey/vim-tmux-navigator'" \
-    "$DOTFILES_ROOT/tmux/plugins.conf" 2>/dev/null || true)
-  if [ "$nvim_navigator_count" -ne 1 ] || [ "$tmux_navigator_count" -ne 1 ]; then
+  nvim_navigator_count=$(
+    grep -Rhl 'christoomey/vim-tmux-navigator' \
+      "$DOTFILES_ROOT/nvim/.config/nvim/lua/plugins" 2>/dev/null \
+      | wc -l \
+      | tr -d ' '
+  )
+  tmux_navigator_count=$(
+    grep -Fhc "set -g @plugin 'christoomey/vim-tmux-navigator'" \
+      "$DOTFILES_ROOT/tmux/plugins.conf" 2>/dev/null || true
+  )
+
+  if [ "$nvim_navigator_count" -ne 1 ] \
+    || [ "$tmux_navigator_count" -ne 1 ]; then
     printf 'vim-tmux-navigator must be declared once in both Neovim and tmux\n' >&2
     return 1
   fi
@@ -345,14 +374,18 @@ check_git_tool_contract() {
   local config="$DOTFILES_ROOT/git/.gitconfig"
   [ "$(git config --file "$config" --get merge.tool)" = nvimdiff ] || return 1
   [ "$(git config --file "$config" --get diff.tool)" = nvimdiff ] || return 1
-  [ "$(git config --file "$config" --get mergetool.nvimdiff.layout)" = LOCAL,MERGED,REMOTE ] || return 1
-  [ "$(git config --file "$config" --get mergetool.keepBackup)" = false ] || return 1
-  ! git config --file "$config" --get mergetool.nvimdiff.cmd >/dev/null 2>&1 || return 1
-  ! git config --file "$config" --get mergetool.nvimdiff.trustExitCode >/dev/null 2>&1
+  [ "$(git config --file "$config" --get mergetool.nvimdiff.layout)" \
+    = LOCAL,MERGED,REMOTE ] || return 1
+  [ "$(git config --file "$config" --get mergetool.keepBackup)" = false ] \
+    || return 1
+  ! git config --file "$config" --get mergetool.nvimdiff.cmd \
+    >/dev/null 2>&1 || return 1
+  ! git config --file "$config" --get mergetool.nvimdiff.trustExitCode \
+    >/dev/null 2>&1
 }
 
 check_clipboard_pipeline() {
-  local tmp capture expected marker
+  local tmp capture expected marker result
   tmp=$(mktemp -d)
   capture="$tmp/capture"
   expected="$tmp/expected"
@@ -363,6 +396,7 @@ check_clipboard_pipeline() {
 #!/usr/bin/env bash
 printf 'first line\nsecond line\n'
 EOF
+
   cat > "$tmp/bin/tmux" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
@@ -373,9 +407,12 @@ case "${1:-}" in
   paste-buffer)
     : > "$DOTFILES_CLIPBOARD_PASTED"
     ;;
-  *) exit 2 ;;
+  *)
+    exit 2
+    ;;
 esac
 EOF
+
   chmod +x "$tmp/bin/wl-paste" "$tmp/bin/tmux"
   printf 'first line\nsecond line\n' > "$expected"
 
@@ -393,71 +430,51 @@ EOF
   return "$result"
 }
 
-bash_runtime() {
-  local tmp_home root bashrc
-  tmp_home=$(mktemp -d)
-  root=$DOTFILES_ROOT
-  bashrc="$root/bash/.bashrc"
-
-  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
-    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
-    bash --noprofile --rcfile "$bashrc" -ic \
-    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
-    || { rm -rf "$tmp_home"; return 1; }
-
-  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
-    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
-    bash --noprofile --rcfile "$bashrc" -ic \
-    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
-    || { rm -rf "$tmp_home"; return 1; }
-
-  env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
-    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=normal \
-    bash --noprofile --rcfile "$bashrc" -ic \
-    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit' \
-    || { rm -rf "$tmp_home"; return 1; }
-
-  env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
-    HOME="$tmp_home" DOTFILES_ROOT="$root" DOTFILES_SHELL_MODE=invalid \
-    bash --noprofile --rcfile "$bashrc" -ic \
-    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
-  result=$?
-  rm -rf "$tmp_home"
-  return "$result"
-}
-
 zsh_runtime() {
   if ! has_cmd zsh; then
     skip "Zsh runtime: zsh not installed"
     return 0
   fi
 
-  local tmp_home root
+  local tmp_home root result
   tmp_home=$(mktemp -d)
   root=$DOTFILES_ROOT
 
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
-    || { rm -rf "$tmp_home"; return 1; }
+    zsh -d -ic \
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 0; exit' \
+    || {
+      rm -rf "$tmp_home"
+      return 1
+    }
 
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX=/tmp/dotfiles-test,1,0 \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
-    || { rm -rf "$tmp_home"; return 1; }
+    zsh -d -ic \
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; test "$DOTFILES_SHELL_IN_TMUX" = 1; exit' \
+    || {
+      rm -rf "$tmp_home"
+      return 1
+    }
 
   env CI=true SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=normal \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -d -ic 'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit' \
-    || { rm -rf "$tmp_home"; return 1; }
+    zsh -d -ic \
+    'test "$DOTFILES_SHELL_EFFECTIVE_MODE" = minimal; test "$DOTFILES_SHELL_REMOTE" = 1; exit' \
+    || {
+      rm -rf "$tmp_home"
+      return 1
+    }
 
   env CI='' SSH_CONNECTION='' SSH_TTY='' TMUX='' \
     HOME="$tmp_home" ZDOTDIR="$root/zsh" DOTFILES_SHELL_MODE=invalid \
     DOTFILES_SKIP_COMPLETION=1 \
-    zsh -d -ic 'test "$DOTFILES_SHELL_MODE" = normal; test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
+    zsh -d -ic \
+    'test "$DOTFILES_SHELL_MODE" = normal; test "$DOTFILES_SHELL_EFFECTIVE_MODE" = normal; exit'
   result=$?
   rm -rf "$tmp_home"
   return "$result"
@@ -474,8 +491,11 @@ tmux_runtime() {
   printf 'set -g status-left "local-overlay"\n' > "$tmp_home/.tmux.conf.local"
 
   (
-    trap 'tmux -L "$socket" kill-server >/dev/null 2>&1 || true; rm -rf "$tmp_home"' EXIT
-    HOME="$tmp_home" tmux -L "$socket" -f "$DOTFILES_ROOT/tmux/tmux.conf" \
+    trap \
+      'tmux -L "$socket" kill-server >/dev/null 2>&1 || true; rm -rf "$tmp_home"' \
+      EXIT
+    HOME="$tmp_home" tmux -L "$socket" \
+      -f "$DOTFILES_ROOT/tmux/tmux.conf" \
       new-session -d -s smoke -c /tmp || exit 1
     [ "$(tmux -L "$socket" show-options -gv prefix 2>/dev/null)" = C-a ] \
       || exit 1
@@ -497,13 +517,13 @@ nvim_runtime() {
   fi
 
   if ! nvim --headless --clean \
-    '+if has("nvim-0.11.3") == 0 | cquit | endif' '+qa' >/dev/null 2>&1
-  then
+    '+if has("nvim-0.11.3") == 0 | cquit | endif' '+qa' \
+    >/dev/null 2>&1; then
     skip "Neovim runtime: version older than 0.11.3"
     return 0
   fi
 
-  local tmp
+  local tmp result
   tmp=$(mktemp -d)
   XDG_DATA_HOME="$tmp/data" \
     XDG_STATE_HOME="$tmp/state" \
@@ -532,18 +552,24 @@ git_runtime() {
   local tmp_home tmp_repo
   tmp_home=$(mktemp -d)
   tmp_repo=$(mktemp -d)
-  HOME="$tmp_home" git config --file "$DOTFILES_ROOT/git/.gitconfig" \
-    --list >/dev/null || { rm -rf "$tmp_home" "$tmp_repo"; return 1; }
+
+  HOME="$tmp_home" \
+    git config --file "$DOTFILES_ROOT/git/.gitconfig" --list >/dev/null || {
+      rm -rf "$tmp_home" "$tmp_repo"
+      return 1
+    }
+
   HOME="$tmp_home" git -C "$tmp_repo" init -q || {
     rm -rf "$tmp_home" "$tmp_repo"
     return 1
   }
+
   rm -rf "$tmp_home" "$tmp_repo"
 }
 
 run_static() {
   run_check "Git whitespace" git -C "$DOTFILES_ROOT" diff --check
-  run_check "Bash syntax" check_bash_syntax
+  run_check "Bash script syntax" check_bash_syntax
   run_check "ShellCheck" check_shellcheck
   run_check "Zsh syntax" check_zsh_syntax
   run_check "Lua syntax" check_lua_syntax
@@ -561,10 +587,11 @@ run_static() {
     bash "$DOTFILES_ROOT/scripts/check-wezterm.sh"
   run_check "Git merge tool contract" check_git_tool_contract
   run_check "Clipboard streaming contract" check_clipboard_pipeline
+  run_check "Repository security baseline" \
+    bash "$DOTFILES_ROOT/scripts/security-check.sh"
 }
 
 run_runtime() {
-  run_check "Bash isolated startup and mode detection" bash_runtime
   run_check "Zsh isolated startup and mode detection" zsh_runtime
   run_check "tmux isolated startup/reload and local overlay" tmux_runtime
   run_check "Neovim headless core startup" nvim_runtime
@@ -575,7 +602,10 @@ run_runtime() {
 case "$PROFILE" in
   static) run_static ;;
   runtime) run_runtime ;;
-  full) run_static; run_runtime ;;
+  full)
+    run_static
+    run_runtime
+    ;;
 esac
 
 printf '\nResult: %d failure(s), %d skipped check(s)\n' "$FAILURES" "$SKIPS"
