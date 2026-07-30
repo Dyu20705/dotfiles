@@ -1,4 +1,4 @@
-# Zsh configuration for the dotfiles terminal workflow.
+# Zsh configuration for the personal terminal workflow.
 
 setopt EXTENDED_HISTORY INC_APPEND_HISTORY HIST_IGNORE_DUPS
 setopt HIST_FIND_NO_DUPS HIST_IGNORE_SPACE HIST_SAVE_NO_DUPS
@@ -13,15 +13,22 @@ typeset -g DOTFILES_ROOT="${DOTFILES_ROOT:-${${(%):-%N}:A:h:h}}"
 export DOTFILES_ROOT
 
 DOTFILES_SHELL_MODE=${DOTFILES_SHELL_MODE:-normal}
-case "$DOTFILES_SHELL_MODE" in minimal|normal|full) ;; *) DOTFILES_SHELL_MODE=normal ;; esac
+case "$DOTFILES_SHELL_MODE" in
+  minimal|normal|full) ;;
+  *) DOTFILES_SHELL_MODE=normal ;;
+esac
+
 DOTFILES_SHELL_REMOTE=0
 DOTFILES_SHELL_IN_TMUX=0
-[[ -n "${CI:-}" || -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]] && DOTFILES_SHELL_REMOTE=1
+[[ -n "${CI:-}" || -n "${SSH_CONNECTION:-}" || -n "${SSH_TTY:-}" ]] \
+  && DOTFILES_SHELL_REMOTE=1
 [[ -n "${TMUX:-}" ]] && DOTFILES_SHELL_IN_TMUX=1
+
 DOTFILES_SHELL_EFFECTIVE_MODE="$DOTFILES_SHELL_MODE"
 if [[ "$DOTFILES_SHELL_MODE" == normal && "$DOTFILES_SHELL_REMOTE" -eq 1 ]]; then
   DOTFILES_SHELL_EFFECTIVE_MODE=minimal
 fi
+
 export DOTFILES_SHELL_MODE DOTFILES_SHELL_REMOTE
 export DOTFILES_SHELL_IN_TMUX DOTFILES_SHELL_EFFECTIVE_MODE
 
@@ -31,8 +38,8 @@ export EDITOR=${EDITOR:-nvim}
 export VISUAL=${VISUAL:-nvim}
 export LESS=${LESS:--R}
 
-if [[ -r "$DOTFILES_ROOT/shell/common.sh" ]]; then
-  source "$DOTFILES_ROOT/shell/common.sh"
+if [[ -r "$DOTFILES_ROOT/zsh/common.zsh" ]]; then
+  source "$DOTFILES_ROOT/zsh/common.zsh"
 fi
 
 alias ..='cd ..'
@@ -60,9 +67,12 @@ else
   else
     PROMPT='%F{green}%n%f:%F{blue}%~%f %F{yellow}❯%f '
   fi
+
   command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"
   command -v direnv >/dev/null 2>&1 && eval "$(direnv hook zsh)"
-  if [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == full ]] && command -v atuin >/dev/null 2>&1; then
+
+  if [[ "$DOTFILES_SHELL_EFFECTIVE_MODE" == full ]] \
+    && command -v atuin >/dev/null 2>&1; then
     eval "$(atuin init zsh)"
   fi
 fi
