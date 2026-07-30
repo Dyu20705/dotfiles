@@ -30,8 +30,8 @@ jobs:
           set -o pipefail
           markdownlint-cli2 \
             README.md \
+            CONTRIBUTING.md \
             "docs/**/*.md" \
-            "!docs/superpowers/plans/**/*.md" \
             2>&1 | tee "$RUNNER_TEMP/markdown.log"
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -67,7 +67,7 @@ jobs:
           set -o pipefail
           bash scripts/check-tmux-contract.sh \
             2>&1 | tee -a "$RUNNER_TEMP/static.log"
-      - name: Run existing static checks
+      - name: Run static checks
         shell: bash
         env:
           WAYLAND_DISPLAY: wayland-0
@@ -75,11 +75,11 @@ jobs:
           set -o pipefail
           bash scripts/test.sh --profile static \
             2>&1 | tee -a "$RUNNER_TEMP/static.log"
-      - name: Run rush v0 contract checks
+      - name: Run repository contract checks
         shell: bash
         run: |
           set -o pipefail
-          bash scripts/test-v0.sh \
+          bash scripts/test-contracts.sh \
             2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Upload static validation log
         if: always()
