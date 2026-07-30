@@ -14,7 +14,6 @@ temp/
 .zcompdump*
 zsh/.zcompdump*
 .zsh_history
-.bash_history
 
 # Secrets and local identity
 .env
@@ -23,7 +22,10 @@ zsh/.zcompdump*
 *.key
 *.crt
 *.p12
+*.pfx
 *.secret
+*.token
+credentials.json
 .ssh/
 .gnupg/
 
