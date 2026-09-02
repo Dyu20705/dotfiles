@@ -1,4 +1,3 @@
--- lua/plugins/mini-indentscope.lua
 return {
   'echasnovski/mini.indentscope',
   version = false,
@@ -14,7 +13,6 @@ return {
       },
     })
 
-    -- Textobjects cho indent scope
     vim.keymap.set({ 'o', 'x' }, 'ii', [[<Cmd>lua MiniIndentscope.textobject("i")<CR>]], { desc = 'Inside indent scope' })
     vim.keymap.set({ 'o', 'x' }, 'ai', [[<Cmd>lua MiniIndentscope.textobject("a")<CR>]], { desc = 'Around indent scope' })
   end,

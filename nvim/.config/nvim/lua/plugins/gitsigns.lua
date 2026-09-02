@@ -1,7 +1,6 @@
--- lua/plugins/gitsigns.lua
 return {
   'lewis6991/gitsigns.nvim',
-  event = { 'BufReadPre', 'BufNewFile' },    -- load when reading any file
+  event = { 'BufReadPre', 'BufNewFile' },
   opts = {
     signs = {
       add          = { text = '│' },
@@ -12,7 +11,7 @@ return {
       untracked    = { text = '┆' },
     },
     signcolumn = true,
-    numhl      = false,      -- numbers will not be highlighted
+    numhl      = false,
     linehl     = false,
     word_diff  = false,
     watch_gitdir = {
@@ -20,7 +19,7 @@ return {
       interval = 1000,
     },
     attach_to_untracked = true,
-    current_line_blame = false,      -- toggled on demand via keymap
+    current_line_blame = false,
     current_line_blame_opts = { delay = 100, virtual_text_pos = 'eol' },
     update_debounce = 200,
     max_file_length = 40000,

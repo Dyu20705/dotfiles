@@ -1,7 +1,6 @@
--- Engine snippet mạnh mẽ, tích hợp với cmp và hỗ trợ snippet động Lua
 return {
   'L3MON4D3/LuaSnip',
-  version = 'v2.*',                     -- phiên bản ổn định
+  version = 'v2.*',
   dependencies = { 'rafamadriz/friendly-snippets' },
   event = 'InsertEnter',
   opts = {

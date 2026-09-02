@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tmux-diagnostics.sh
-# 
+#
 # Measure tmux startup time and identify bottlenecks
-# 
+#
 # Usage:
 #   tmux-diagnostics.sh              # Run all diagnostics
 #   tmux-diagnostics.sh startup      # Measure startup time
@@ -13,8 +13,8 @@ set +e
 TMUX_CONF_PATH="${TMUX_CONF_PATH:-$PWD/tmux/tmux.conf}"
 
 measure_startup() {
-  echo "=== TMUX STARTUP DIAGNOSTICS ==="
-  
+  echo "Tmux startup diagnostics:"
+
   # Create a temporary config
   TMPDIR=$(mktemp -d)
   TMPCONF="$TMPDIR/tmux.conf"
@@ -26,7 +26,7 @@ measure_startup() {
   cp "$PWD/tmux/plugins.conf" "$TMPDIR/plugins.conf"
   cp "$PWD/tmux/clipboard-paste.sh" "$TMPDIR/clipboard-paste.sh"
   chmod +x "$TMPDIR/clipboard-paste.sh"
-  
+
   # Measure with full config
   echo "1. Full config load:"
   START=$(date +%s%3N)
@@ -34,7 +34,7 @@ measure_startup() {
   END=$(date +%s%3N)
   echo "   Time: $((END - START))ms"
   tmux kill-session -t diagtest$$ 2>/dev/null
-  
+
   # Measure with plugins disabled
   : > "$TMPDIR/plugins.conf"
   echo "2. Without plugins:"
@@ -43,7 +43,7 @@ measure_startup() {
   END=$(date +%s%3N)
   echo "   Time: $((END - START))ms"
   tmux kill-session -t diagtest2$$ 2>/dev/null
-  
+
   # Measure with status bar disabled
   cp "$TMPCONF" "$TMPDIR/tmux.nostatus"
   echo "set -g status off" >> "$TMPDIR/tmux.nostatus"
@@ -53,28 +53,28 @@ measure_startup() {
   END=$(date +%s%3N)
   echo "   Time: $((END - START))ms"
   tmux kill-session -t diagtest3$$ 2>/dev/null
-  
+
   rm -rf "$TMPDIR"
-  
+
   echo ""
-  echo "✔ Diagnostics complete"
+  echo "Diagnostics complete"
 }
 
 check_shell_invocations() {
-  echo "=== SHELL INVOCATION CHECK ==="
+  echo "Shell invocation check:"
   echo ""
   echo "1. Status bar shell-outs (status-right/left):"
   grep -R -nE '#\(|run-shell|run ' "$PWD/tmux"/*.conf 2>/dev/null | wc -l
   echo ""
-  
+
   echo "2. Configured plugins:"
   grep -c "@plugin" "$PWD/tmux/plugins.conf"
   echo ""
-  
+
   echo "3. Key bindings with shell execution:"
   grep -R -nE 'bind .*run-shell|bind .*run ' "$PWD/tmux"/*.conf 2>/dev/null | wc -l
   echo ""
-  
+
   echo "Hot path summary:"
   echo "  - Status bar now uses tmux-native formats only"
   echo "  - Clipboard and session actions remain explicit bindings"
@@ -83,7 +83,7 @@ check_shell_invocations() {
 }
 
 check_nested_tmux() {
-  echo "=== NESTED TMUX CHECK ==="
+  echo "Nested tmux check:"
   echo ""
   if [ -n "$TMUX" ]; then
     echo "Already in tmux. Config escape-time: $(tmux show-option -g escape-time | awk '{print $2}')"
@@ -95,17 +95,17 @@ check_nested_tmux() {
   else
     echo "Not in tmux session. Create one to test nested behavior."
     echo ""
-    echo "To test: tmux new-session; tmux attach-session; run: TMUX=1 tmux new-session -d -s nested" 
+    echo "To test: tmux new-session; tmux attach-session; run: TMUX=1 tmux new-session -d -s nested"
   fi
 }
 
 check_config_path() {
-  echo "=== CONFIG PATH ==="
+  echo "Config path:"
   echo "$TMUX_CONF_PATH"
 }
 
 check_config_checksum() {
-  echo "=== CONFIG CHECKSUM ==="
+  echo "Config checksum:"
   if command -v tmux >/dev/null 2>&1; then
     cfg=$(tmux display -p "#{config_file}" 2>/dev/null || echo "$TMUX_CONF_PATH")
     echo "Config: $cfg"
@@ -126,7 +126,7 @@ check_config_checksum() {
 }
 
 check_status_shellouts() {
-  echo "=== STATUS/SHELL-OUTS AUDIT ==="
+  echo "Status shell-outs audit:"
   echo "Searching tmux directory for '#(' occurrences (possible shell-outs)..."
   grep -R --line-number "#(" "$PWD/tmux" 2>/dev/null || echo "  none found in tmux/"
 }

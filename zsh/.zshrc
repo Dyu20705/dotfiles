@@ -34,6 +34,8 @@ export DOTFILES_SHELL_IN_TMUX DOTFILES_SHELL_EFFECTIVE_MODE
 
 path=("$HOME/.local/bin" $path)
 [[ -d "$HOME/.cargo/bin" ]] && path=("$HOME/.cargo/bin" $path)
+[[ -d "$HOME/.deno/bin" ]] && path=("$HOME/.deno/bin" $path)
+[[ -d "$HOME/.npm-global/bin" ]] && path=("$HOME/.npm-global/bin" $path)
 export EDITOR=${EDITOR:-nvim}
 export VISUAL=${VISUAL:-nvim}
 export LESS=${LESS:--R}
