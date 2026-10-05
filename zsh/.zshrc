@@ -102,3 +102,14 @@ dotfiles-shell-diagnostics() {
   print "nvim=$(command -v nvim 2>/dev/null || print '<missing>')"
   print "tmux=$(command -v tmux 2>/dev/null || print '<missing>')"
 }
+
+# >>> juliaup initialize >>>
+
+# !! Contents within this block are managed by juliaup !!
+
+path=('/home/duy/.juliaup/bin' $path)
+export PATH
+# Tab completion for juliaup and julia channel selection
+[ -f "/home/duy/.julia/juliaup/completions/zsh.zsh" ] && source "/home/duy/.julia/juliaup/completions/zsh.zsh"
+
+# <<< juliaup initialize <<<
