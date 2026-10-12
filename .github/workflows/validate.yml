@@ -34,7 +34,7 @@ jobs:
             "docs/**/*.md" \
             2>&1 | tee "$RUNNER_TEMP/markdown.log"
       - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: markdown-validation-log
           path: ${{ runner.temp }}/markdown.log
@@ -84,7 +84,7 @@ jobs:
             2>&1 | tee -a "$RUNNER_TEMP/static.log"
       - name: Upload static validation log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: static-validation-log
           path: ${{ runner.temp }}/static.log
@@ -122,7 +122,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/runtime-${RUNNER_OS}.log"
       - name: Upload runtime validation log
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: runtime-validation-${{ runner.os }}
           path: ${{ runner.temp }}/runtime-${RUNNER_OS}.log
