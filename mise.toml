@@ -1,9 +1,0 @@
-[tools]
-"ubi:koalaman/shellcheck" = "0.10.0"
-"ubi:jqlang/jq" = "1.7.1"
-
-[tasks.check]
-run = "bash scripts/test.sh --profile full && bash scripts/test-contracts.sh"
-
-[tasks.doctor]
-run = "bash scripts/doctor.sh --profile normal"
