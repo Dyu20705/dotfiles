@@ -8,11 +8,8 @@ services and a general-purpose dotfiles framework.
 
 ```bash
 sudo apt update
-sudo apt install kitty tmux neovim ncurses-term
+sudo apt install kitty tmux neovim
 ```
-
-`ncurses-term` provides the `tmux-256color` terminfo entry used by the tmux
-configuration.
 
 ## Deploy configurations
 
