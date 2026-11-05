@@ -1,5 +1,0 @@
--- Copy values into an untracked local WezTerm file or environment variables.
-return {
-  background_dir = nil,
-  music_dir = nil,
-}

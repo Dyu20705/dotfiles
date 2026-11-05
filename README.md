@@ -1,63 +1,81 @@
-# Dotfiles
+# Debian dotfiles
 
-[![validate][validate-badge]][validate-workflow]
+A small personal configuration for **Kitty, tmux and Neovim** on Debian.
+The repository intentionally avoids a custom shell, plugin managers, background
+services and a general-purpose dotfiles framework.
 
-[validate-badge]: https://github.com/Dyu20705/dotfiles/actions/workflows/validate.yml/badge.svg?branch=main
-[validate-workflow]: https://github.com/Dyu20705/dotfiles/actions/workflows/validate.yml
-
-Personal, Ubuntu-first terminal configuration built around **WezTerm → tmux → Zsh**,
-with Neovim, Git and optional LazyGit.
-
-This repository is maintained for one user's machines. External contributions are
-not accepted; fork it and adapt it to your own environment.
-
-## Quick start
-
-Prerequisites: Git, Bash and `jq`. Bash is used to run the management scripts;
-the deployed interactive shell is Zsh.
+## Install packages
 
 ```bash
-git clone https://github.com/Dyu20705/dotfiles.git ~/src/dotfiles
-cd ~/src/dotfiles
-
-# Inspect package changes first.
-bash scripts/dot packages --profile normal --dry-run
-
-# Install packages and deploy the normal Zsh/tmux/Neovim profile.
-bash scripts/dot packages --profile normal --yes
-bash scripts/dot install --profile normal
-
-dot doctor
-exec zsh
+sudo apt update
+sudo apt install kitty tmux neovim
 ```
 
-Create the untracked Git identity file after deployment:
+## Deploy configurations
 
 ```bash
-cp git/.gitconfig.local.example ~/.gitconfig.local
-$EDITOR ~/.gitconfig.local
+git clone https://github.com/Dyu20705/dotfiles.git ~/dotfiles
+cd ~/dotfiles
+
+# Preview what will happen first.
+./install.sh --dry-run
+
+# Back up existing targets and create symlinks.
+./install.sh
 ```
 
-## Overview
+The installer does not use `sudo`, install packages, change your login shell,
+or delete existing configuration. Existing targets are moved next to their
+original paths with a `.backup.<timestamp>` suffix.
 
-| Area | Role |
-| --- | --- |
-| WezTerm | Terminal entrypoint and optional local media/background controls |
-| tmux | Persistent sessions, panes and clipboard bridge |
-| Zsh | Primary and only managed interactive shell |
-| Neovim | Precision editor, navigation, diagnostics and focused refactoring |
-| Git | Canonical CLI and configuration source of truth |
-| LazyGit | Optional TUI that executes Git operations; it does not replace Git |
-| `dot` | Install, diagnose, validate, back up, restore and uninstall |
-| `dev` / `gw` | Project sessionizer and guarded Git worktree helpers |
+Because the files are symlinked, changes pulled into `~/dotfiles` take effect
+without running the installer again. Run it again only when deploying to a new
+machine or repairing links.
 
-Private identity, paths, host-specific settings and assets stay outside Git in
-local overlays.
+## What is configured
 
-## Documentation
+- **Kitty:** modest window padding, scrollback, quiet bell and a few tab/window
+  shortcuts. The terminal's default font and color scheme are retained.
+- **tmux:** Ctrl-a prefix, mouse support, vi copy mode, current-directory-aware
+  splits, pane navigation, OSC 52 clipboard forwarding and a minimal status bar.
+- **Neovim:** sensible editing/search defaults and a small set of leader
+  keymaps. It uses built-in features and starts without third-party plugins.
 
-- [Complete cheat sheet](docs/CHEATSHEET.md)
-- [Configuration architecture](docs/ARCHITECTURE.md)
-- [Maintenance and validation](docs/MAINTENANCE.md)
-- [Security model](docs/SECURITY.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
+## Clipboard notes
+
+Kitty supports OSC 52 clipboard writes. tmux enables clipboard forwarding so
+copying text in tmux copy mode can reach the local clipboard. Neovim's `+` and
+`*` registers use a system clipboard provider; install one only when needed:
+
+```bash
+# Wayland
+sudo apt install wl-clipboard
+
+# X11
+sudo apt install xclip
+```
+
+## Extend only when needed
+
+Keep each application's configuration in its own directory. Add a plugin or
+helper only after a repeated workflow cannot be handled cleanly by the built-in
+features. Neovim can load plugins from its native `pack/*/start` layout; a
+plugin manager is not a prerequisite. Add language servers individually when
+there is a concrete language/toolchain requirement.
+
+Do not add machine-specific paths, credentials, tokens or private keys to this
+repository. Keep those in local files outside Git.
+
+## Useful checks
+
+```bash
+# Outside tmux, Kitty should normally report xterm-kitty.
+echo "$TERM"
+
+# Inside tmux, this should report tmux-256color.
+echo "$TERM"
+
+# Check Neovim's runtime and built-in health checks.
+nvim --version
+nvim --clean +'checkhealth' +q
+```
